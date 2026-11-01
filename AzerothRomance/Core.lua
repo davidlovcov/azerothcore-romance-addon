@@ -132,6 +132,7 @@ local handlers = {}
 handlers.hello = function(msg)
     AR.state.connected = true
     AR.state.hello = msg
+    AR.state.presets = msg.presets or {}
     AR.state.status = msg.status
     AR:Fire("HELLO", msg)
     AR:Fire("STATUS_CHANGED")
@@ -199,6 +200,11 @@ handlers.profile = function(msg)
     AR.state.profile = msg.profile or {}
     AR.state.profileIsDefault = msg.accountDefault and true or false
     AR:Fire("PROFILE_CHANGED")
+end
+
+handlers.presets = function(msg)
+    AR.state.presets = msg.presets or AR.state.presets
+    AR:Fire("PRESETS_CHANGED")
 end
 
 handlers.models = function(msg)
@@ -312,6 +318,11 @@ function AR:ClassColor(classId)
     local c = token and RAID_CLASS_COLORS and RAID_CLASS_COLORS[token]
     if c then return c.r, c.g, c.b end
     return 0.9, 0.9, 0.9
+end
+
+-- Built-in presets plus the account's custom ones (custom = true).
+function AR:Presets()
+    return self.state.presets or (self.state.hello and self.state.hello.presets) or {}
 end
 
 -- Names of the companions whose AI is active right now, in list order.

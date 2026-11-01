@@ -17,7 +17,7 @@ local FIELDS = {
 }
 
 local function build(f)
-    local intro = W.Label(f, "Tell your companion who you are in the roleplay. She remembers it, so she won't keep asking.", 11, W.MUTED)
+    local intro = W.Label(f, "Tell your companions who you are in the roleplay. They remember it, so they won't keep asking.", 11, W.MUTED)
     intro:SetPoint("TOPLEFT", 2, -2)
     intro:SetWidth(740)
 
@@ -59,6 +59,16 @@ local function build(f)
     status:SetPoint("BOTTOMLEFT", 220, 12)
     local save = W.Button(f, "Save profile", 130, 24)
     save:SetPoint("BOTTOMRIGHT", -4, 6)
+    local random = W.Button(f, "Randomize story", 130, 24, function()
+        local _, comp, char = AR:Selected()
+        local companion = (comp and comp.personality and comp.personality.name ~= "" and comp.personality.name) or (char and char.name)
+        for key, v in pairs(AR.Random.PlayerStory(companion)) do
+            if fields[key] then fields[key]:SetValue(v) end
+        end
+        status:SetText("Random story filled in - press Save to keep it.")
+    end)
+    random:SetPoint("RIGHT", save, "LEFT", -8, 0)
+    W.Tooltip(random, "Randomize story", "Fills identity, background, interests and shared history with a random story. Name, age and pronouns stay.")
 
     function f:Load()
         local p = AR.state.profile or {}

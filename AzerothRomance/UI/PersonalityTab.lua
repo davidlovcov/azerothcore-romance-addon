@@ -1,6 +1,11 @@
 --[[
-  AzerothRomance - Personality tab: identity, traits, response style, presets.
+  AzerothRomance - Personality tab: presets, identity, story, traits, response style.
   The server sanitizes everything again (adult age, lengths, known styles).
+
+  Presets are complete personalities. Applying one replaces every field except
+  name and nickname (language, stage labels and the proposal setting stay too).
+  "Reset to preset" applies the companion's current preset again; "Undo changes"
+  throws away unsaved edits.
 ]]
 
 local AR = _G.AzerothRomance
@@ -46,38 +51,80 @@ local TEXT_FIELDS = {
     { key = "lore", label = "In-universe lore preferences" },
 }
 
+local function presetById(id)
+    for _, p in ipairs(AR:Presets()) do
+        if p.id == id then return p end
+    end
+end
+
 local function build(f)
     local scroll = CreateFrame("ScrollFrame", "AzerothRomancePersonalityScroll", f, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 0, 0)
     scroll:SetPoint("BOTTOMRIGHT", -24, 40)
     local c = CreateFrame("Frame", nil, scroll)
     c:SetWidth(730)
-    c:SetHeight(1240)
+    c:SetHeight(1300)
     scroll:SetScrollChild(c)
 
     local fields = {}
+    local current = {}
     local y = -4
+
+    -- bottom row first: other widgets report into `status`
+    local status = W.Label(f, "", 11, W.MUTED)
+    status:SetPoint("BOTTOMLEFT", 4, 12)
+    status:SetWidth(330)
+    local save = W.Button(f, "Save personality", 140, 24)
+    save:SetPoint("BOTTOMRIGHT", -4, 6)
+    local revert = W.Button(f, "Undo changes", 110, 24)
+    revert:SetPoint("RIGHT", save, "LEFT", -8, 0)
+    W.Tooltip(revert, "Undo changes", "Discards unsaved edits and shows the saved personality again.")
+    local resetPreset = W.Button(f, "Reset to preset", 120, 24)
+    resetPreset:SetPoint("RIGHT", revert, "LEFT", -8, 0)
+    W.Tooltip(resetPreset, "Reset to preset defaults",
+        "Applies the companion's current preset again: every field goes back to the preset's values (name and nickname stay).")
+
+    local function ackText(okText)
+        return function(msg)
+            if msg.op == "ack" or msg.op == "presets" then
+                status:SetText(msg.ok and ("|cff60ff60" .. okText .. "|r") or ("|cffff6060" .. AR:AckText(msg) .. "|r"))
+            end
+        end
+    end
 
     -- ---------------------------------------------------------------- presets
     local h = W.Heading(c, "Preset")
     h:SetPoint("TOPLEFT", 4, y)
     local presetDesc = W.Label(c, "", 11, W.MUTED)
-    local preset = W.Dropdown(c, "Preset (keeps your name and story fields)", 300, {}, function(id)
-        for _, p in ipairs((AR.state.hello and AR.state.hello.presets) or {}) do
-            if p.id == id then presetDesc:SetText(p.description or "") end
-        end
+    local preset, showAll, deletePreset
+    preset = W.Dropdown(c, "Preset (replaces everything except name & nickname)", 300, {}, function(id)
+        local p = presetById(id)
+        presetDesc:SetText(p and (p.description or "") or "")
+        if p and p.custom then deletePreset:Enable() else deletePreset:Disable() end
     end)
     preset:SetPoint("TOPLEFT", 0, y - 18)
     local applyPreset = W.Button(c, "Apply preset", 110, 22, function()
         local g = AR.state.selected
         local id = preset:GetValue()
         if not g or not id then return end
-        AR:Request("apply_preset", { guid = g, preset = id })
+        status:SetText("Applying preset...")
+        AR:Request("apply_preset", { guid = g, preset = id }, ackText("Preset applied."))
     end)
     applyPreset:SetPoint("TOPLEFT", 310, y - 32)
-    presetDesc:SetPoint("TOPLEFT", 430, y - 34)
-    presetDesc:SetWidth(290)
-    y = y - 76
+    showAll = W.Check(c, "All genders", "Also list presets written for the other gender.")
+    showAll:SetPoint("TOPLEFT", 430, y - 30)
+    presetDesc:SetPoint("TOPLEFT", 4, y - 62)
+    presetDesc:SetWidth(714)
+    y = y - 84
+
+    local presetName = W.Edit(c, "Save this personality as your own preset", 300, 40)
+    presetName:SetPoint("TOPLEFT", 0, y)
+    local savePreset = W.Button(c, "Save as preset", 120, 22)
+    savePreset:SetPoint("TOPLEFT", 310, y - 14)
+    deletePreset = W.Button(c, "Delete preset", 110, 22)
+    deletePreset:SetPoint("TOPLEFT", 438, y - 14)
+    deletePreset:Disable()
+    y = y - 56
 
     -- ---------------------------------------------------------------- identity
     h = W.Heading(c, "Identity")
@@ -108,6 +155,9 @@ local function build(f)
     -- ---------------------------------------------------------------- story fields
     h = W.Heading(c, "Story & taste")
     h:SetPoint("TOPLEFT", 4, y)
+    local randomStory = W.Button(c, "Randomize", 90, 18)
+    randomStory:SetPoint("TOPLEFT", 140, y + 2)
+    W.Tooltip(randomStory, "Randomize story & taste", "Fills the fields below with a random story. Nothing is saved until you press Save.")
     y = y - 18
     for i, fd in ipairs(TEXT_FIELDS) do
         local col = (i - 1) % 2
@@ -156,36 +206,56 @@ local function build(f)
     y = y - 10
     local romance = W.Check(c, "Romance possible", "Untick for a purely platonic companion (never progresses beyond close friends).")
     romance:SetPoint("TOPLEFT", 4, y)
-    local autoAccept = W.Check(c, "Always says yes to proposals", "Skip the relationship requirements for proposals. Off = she decides based on your relationship.")
+    local autoAccept = W.Check(c, "Always says yes to proposals", "Skip the relationship requirements for proposals. Off = the companion decides based on your relationship.")
     autoAccept:SetPoint("TOPLEFT", 244, y)
     y = y - 34
 
-    local custom = W.TextArea(c, "Custom instructions (e.g. \"She is initially shy and distant, but gradually becomes affectionate.\")", 714, 90, 1200)
+    local custom = W.TextArea(c, "Custom instructions (e.g. \"Initially shy and distant, but gradually becomes affectionate.\")", 714, 90, 1200)
     custom:SetPoint("TOPLEFT", 0, y)
     fields.customInstructions = custom
     y = y - 120
     c:SetHeight(-y + 20)
 
-    -- ---------------------------------------------------------------- buttons
-    local status = W.Label(f, "", 11, W.MUTED)
-    status:SetPoint("BOTTOMLEFT", 4, 12)
-    local save = W.Button(f, "Save personality", 140, 24)
-    save:SetPoint("BOTTOMRIGHT", -4, 6)
-    local revert = W.Button(f, "Revert", 80, 24)
-    revert:SetPoint("RIGHT", save, "LEFT", -8, 0)
+    -- ---------------------------------------------------------------- logic
 
-    local current = {}
+    -- Gender of the selected companion: the personality's own setting, else the character's model.
+    local function companionGender()
+        local _, comp, char = AR:Selected()
+        local pg = (comp and comp.personality and comp.personality.gender or ""):lower()
+        if pg == "female" or pg == "male" then return pg end
+        if char and char.gender ~= nil then return tonumber(char.gender) == 1 and "female" or "male" end
+    end
+
+    function f:FillPresets()
+        local gender = companionGender()
+        local items = {}
+        for _, pr in ipairs(AR:Presets()) do
+            local fits = showAll:GetChecked() or pr.custom or not gender or (pr.gender or "") == "" or pr.gender == gender
+            if fits or pr.id == current.preset then
+                items[#items + 1] = { value = pr.id, text = (pr.custom and "|cffffd100*|r " or "") .. pr.label }
+            end
+        end
+        preset:SetItems(items)
+        local sel = preset:GetValue()
+        if sel and not presetById(sel) then sel = nil end
+        preset:SetValue(sel)
+        local p = sel and presetById(sel)
+        presetDesc:SetText(p and (p.description or "") or "")
+        if p and p.custom then deletePreset:Enable() else deletePreset:Disable() end
+        if AR.state.selected and current.preset and current.preset ~= "" and presetById(current.preset) then
+            resetPreset:Enable()
+        else
+            resetPreset:Disable()
+        end
+    end
+    showAll:HookScript("OnClick", function() f:FillPresets() end)
 
     function f:Load()
         local g, comp = AR:Selected()
         local p = (comp and comp.personality) or {}
         current = p
-        local presets = {}
-        for _, pr in ipairs((AR.state.hello and AR.state.hello.presets) or {}) do
-            presets[#presets + 1] = { value = pr.id, text = pr.label }
-        end
-        preset:SetItems(presets)
         preset:SetValue(p.preset ~= "" and p.preset or nil)
+        f:FillPresets()
         for key, e in pairs(fields) do
             local v = p[key]
             if key == "age" then v = tostring(p.age or 21) end
@@ -220,7 +290,8 @@ local function build(f)
         end
         p.romanceEnabled = romance:GetChecked() and true or false
         p.autoAcceptProposals = autoAccept:GetChecked() and true or false
-        p.preset = preset:GetValue() or current.preset or ""
+        -- the preset a personality came from; the dropdown is only a picker for "Apply"
+        p.preset = current.preset or ""
         p.stageLabels = current.stageLabels or AR.Json.Array({})
         return p
     end
@@ -241,8 +312,59 @@ local function build(f)
             end
         end)
     end)
-    revert:SetScript("OnClick", function() f:Load() end)
 
+    revert:SetScript("OnClick", function()
+        f:Load()
+        status:SetText("Unsaved changes discarded.")
+    end)
+
+    resetPreset:SetScript("OnClick", function()
+        local g = AR.state.selected
+        if not g or not current.preset or current.preset == "" then return end
+        status:SetText("Resetting to preset...")
+        AR:Request("apply_preset", { guid = g, preset = current.preset }, ackText("Back to the preset's defaults."))
+    end)
+
+    randomStory:SetScript("OnClick", function()
+        for key, v in pairs(AR.Random.CompanionStory(companionGender())) do
+            if fields[key] then fields[key]:SetValue(v) end
+        end
+        status:SetText("Random story filled in - press Save to keep it.")
+    end)
+
+    savePreset:SetScript("OnClick", function()
+        local label = presetName:GetValue() or ""
+        if label:gsub("%s", "") == "" then
+            status:SetText("|cffff6060Give the preset a name first.|r")
+            return
+        end
+        local sel = preset:GetValue()
+        local existing = sel and presetById(sel)
+        -- saving under the name of the selected custom preset overwrites it
+        local replace = (existing and existing.custom and existing.label == label) and existing.id or nil
+        local who = (current.name and current.name ~= "") and current.name or "a companion"
+        AR:Request("save_preset", { label = label, description = "Saved from " .. who .. ".", personality = f:Collect(), replace = replace },
+            function(msg)
+                if msg.op ~= "presets" then return end
+                status:SetText(msg.ok and ("|cff60ff60Preset \"" .. label .. "\" saved.|r") or ("|cffff6060" .. AR:AckText(msg) .. "|r"))
+                if msg.ok and msg.savedId and msg.savedId ~= "" then preset:SetValue(msg.savedId) end
+                f:FillPresets()
+            end)
+    end)
+
+    deletePreset:SetScript("OnClick", function()
+        local sel = preset:GetValue()
+        local p = sel and presetById(sel)
+        if not p or not p.custom then return end
+        AR:Request("delete_preset", { preset = sel }, function(msg)
+            if msg.op ~= "presets" then return end
+            status:SetText(msg.ok and ("Preset \"" .. p.label .. "\" deleted.") or ("|cffff6060" .. AR:AckText(msg) .. "|r"))
+            preset:SetValue(nil)
+            f:FillPresets()
+        end)
+    end)
+
+    AR:On("PRESETS_CHANGED", function() if f:IsShown() then f:FillPresets() end end)
     AR:On("COMPANION_CHANGED", function(g) if g == AR.state.selected and f:IsShown() then f:Load() end end)
     AR:On("SELECTION_CHANGED", function() if f:IsShown() then f:Load() end end)
     f.OnShowTab = function() f:Load() end

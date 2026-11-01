@@ -26,7 +26,7 @@ for _, f in ipairs(files) do
     assert(chunk, err)
     chunk("AzerothRomance", {})
 end
-check(#files == 13, "toc lists 13 files")
+check(#files == 14, "toc lists 14 files")
 local AR = AzerothRomance
 local Protocol = AR.Protocol
 
@@ -148,6 +148,46 @@ local sp = findOp(reqs, "save_personality")
 check(sp ~= nil, "save_personality sent")
 check(sp and sp.personality.age == 24 and sp.personality.customInstructions:find("|", 1, true) ~= nil, "pipe survives the wire (escaped)")
 check(sp and sp.guid == 2, "save targets selected companion")
+
+-- 5b. presets: reset, custom presets, randomizers ------------------------------------
+local function click(text)
+    for _, f in ipairs(WOWSTUB.frames) do
+        if f._kind == "Button" and f._text == text then f:Click() return true end
+    end
+end
+personality.preset = "anime_girlfriend"
+serverSend({ op = "companion", guid = 2, name = "Elara", configured = true, personality = personality })
+drainRequests()
+check(click("Reset to preset"), "reset button exists")
+reqs = drainRequests()
+local ap = findOp(reqs, "apply_preset")
+check(ap and ap.preset == "anime_girlfriend" and ap.guid == 2, "reset re-applies the current preset")
+check(ptab:Collect().preset == "anime_girlfriend", "saved personality keeps its preset id")
+
+check(click("Save as preset"), "save-as-preset button exists")
+check(findOp(drainRequests(), "save_preset") == nil, "no preset without a name")
+
+serverSend({ op = "presets", ok = true, ["for"] = "save_preset", savedId = "custom:1", presets = {
+    { id = "anime_girlfriend", label = "Anime Girlfriend", gender = "female", profile = presetProfile },
+    { id = "gentle_knight", label = "Gentle Knight", gender = "male", profile = presetProfile },
+    { id = "custom:1", label = "Herbalist", custom = true, profile = presetProfile } } })
+check(#AR:Presets() == 3 and AR:Presets()[3].custom, "custom presets stored")
+
+check(click("Randomize"), "randomize story button exists")
+local story = ptab:Collect()
+check(story.background ~= "" and story.likes ~= "" and story.lore ~= "", "random story fills the story fields")
+check(story.name == "Elara", "randomize keeps the name")
+local female = AR.Random.CompanionStory("female")
+local male = AR.Random.CompanionStory("male")
+for _, k in ipairs({ "background", "history", "interests", "likes", "dislikes", "goals", "fears", "relationshipPreferences", "lore" }) do
+    check(type(female[k]) == "string" and female[k] ~= "", "random companion field " .. k)
+end
+check(not (female.fears .. female.goals .. female.history):find("%f[%a]they%f[%A]"), "female story uses her pronouns")
+check(not (male.fears .. male.goals .. male.history):find("%f[%a]their%f[%A]"), "male story uses his pronouns")
+local ps = AR.Random.PlayerStory("Elara")
+check(ps.sharedHistory:find("Elara") ~= nil and ps.rpIdentity ~= "", "random player story mentions the companion")
+check(click("Undo changes"), "undo button exists")
+check(ptab:Collect().background == (personality.background or ""), "undo discards unsaved edits")
 
 -- 6. chat: send + typing + reply -----------------------------------------------------
 AR.UI:ShowTab("chat")
