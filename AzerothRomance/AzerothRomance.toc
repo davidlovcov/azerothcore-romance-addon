@@ -15,6 +15,7 @@ UI\Randomizer.lua
 UI\MainFrame.lua
 UI\CompanionTab.lua
 UI\ChatTab.lua
+UI\CharacterTab.lua
 UI\PersonalityTab.lua
 UI\ProfileTab.lua
 UI\RelationshipTab.lua

@@ -26,7 +26,7 @@ for _, f in ipairs(files) do
     assert(chunk, err)
     chunk("AzerothRomance", {})
 end
-check(#files == 14, "toc lists 14 files")
+check(#files == 15, "toc lists 15 files")
 local AR = AzerothRomance
 local Protocol = AR.Protocol
 
@@ -188,6 +188,21 @@ local ps = AR.Random.PlayerStory("Elara")
 check(ps.sharedHistory:find("Elara") ~= nil and ps.rpIdentity ~= "", "random player story mentions the companion")
 check(click("Undo changes"), "undo button exists")
 check(ptab:Collect().background == (personality.background or ""), "undo discards unsaved edits")
+
+-- 5c. character tab --------------------------------------------------------------------
+AR.UI:ShowTab("character")
+reqs = drainRequests()
+local gs = findOp(reqs, "get_character_sheet")
+check(gs and gs.guid == 2, "character tab requests the sheet")
+serverSend({ op = "character_sheet", req = gs and gs.req, guid = 2, name = "Elara", level = 23, xp = 500, xpNext = 1000, money = 123456,
+    health = 90, freeSlots = 3, totalSlots = 64, follow = "lead", leadQuest = "Kobold Camp Cleanup",
+    items = { { name = "Linen Cloth", count = 12, quality = 1 }, { name = "Broken Tooth", count = 3, quality = 0 } },
+    gear = { { slot = 4, name = "Robe of Power", quality = 3 } },
+    spells = { { id = 133, name = "Fireball" } },
+    quests = { { title = "Kobold Camp Cleanup", level = 7, progress = "Kobold Vermin 4/10", shared = true } } })
+check(AR.state.sheets[2] and AR.state.sheets[2].level == 23, "sheet stored")
+stub.Update(11)
+check(findOp(drainRequests(), "get_character_sheet") ~= nil, "sheet refreshes while the tab is open")
 
 -- 6. chat: send + typing + reply -----------------------------------------------------
 AR.UI:ShowTab("chat")

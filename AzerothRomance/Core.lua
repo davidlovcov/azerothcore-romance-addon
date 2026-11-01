@@ -17,6 +17,7 @@ AR.state = {
     status = nil,
     chars = {},
     companions = {},     -- guid -> companion payload
+    sheets = {},         -- guid -> character sheet (bags, quests, spells, ...)
     relationship = {},   -- guid -> relationship payload
     typing = {},         -- guid -> true
     selected = nil,      -- selected companion guid
@@ -200,6 +201,13 @@ handlers.profile = function(msg)
     AR.state.profile = msg.profile or {}
     AR.state.profileIsDefault = msg.accountDefault and true or false
     AR:Fire("PROFILE_CHANGED")
+end
+
+handlers.character_sheet = function(msg)
+    local g = companionGuid(msg)
+    if not g then return end
+    AR.state.sheets[g] = msg
+    AR:Fire("SHEET_CHANGED", g)
 end
 
 handlers.presets = function(msg)
