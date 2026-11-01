@@ -1,15 +1,18 @@
 # AzerothRomance (addon)
 
+**Author:** [davidlovcov](https://github.com/davidlovcov)
+
 World of Warcraft **3.3.5a** addon (Interface 30300) for the AzerothCore module **[mod-romance](https://github.com/davidlovcov/mod-romance)**: AI companions powered by mod-playerbots and a local Ollama model.
 
 > This addon only works on servers that run **mod-romance**. All data (characters, relationship, memories, AI) lives on the server; the addon displays it and sends your requests.
 
 ## Features
 
-- **Companion:** your account's characters with level, race, class and live status. Unavailable characters are greyed out and explain why. Call or send home your companion, and turn her AI on or off.
-- **Chat:** conversation history with timestamps and a "thinking" indicator. She also answers by normal whisper. Lines starting with `!` are plain Playerbots commands.
-- **Personality:** identity, story, 12 trait sliders, response styles, custom instructions, language and presets (including *Anime Girlfriend*).
-- **Player Profile:** who you are in the roleplay, per character or account-wide.
+- **Companion:** your account's characters with level, race, class and live status. Unavailable characters are greyed out and explain why. Call or send home your companions (several at once), and turn their AI on or off. The window header names the companions that are really with you.
+- **Chat:** conversation history with timestamps and a "thinking" indicator. Companions also answer by normal whisper. Lines starting with `!` are plain Playerbots commands.
+- **Character:** the companion's level, XP, gold, bags, gear, quests (with progress and which you share) and spells, refreshed while the tab is open.
+- **Personality:** identity, story, 12 trait sliders, response styles, custom instructions and language. Complete presets for female and male companions (e.g. *Anime Girlfriend*, *Gentle Knight*), your own saved presets, **Reset to preset**, **Undo changes** and a **Randomize** button for story & taste.
+- **Player Profile:** who you are in the roleplay, per character or account-wide, with its own randomizer.
 - **Relationship:** stage, mood, all relationship values, significant moments, and the starting relationship.
 - **Settings:** proactive chat, spoken commands, party chat, model and creativity (within the server's limits).
 - **Debug:** a small tab with diagnostics, raw model output and the **memory viewer** (filter, edit, pin, delete, add, export and import).
@@ -37,6 +40,8 @@ git clone https://github.com/davidlovcov/azerothcore-romance-addon.git
 | `/romance status` | server and Ollama status |
 | `/romance minimap` | show or hide the minimap button |
 | `/romance reset window` | move the window back to the centre |
+
+Everything you can say to a companion in chat ("give me 10 gold", "attack the wolf", "share your quests", "lead the way"...) is listed in [mod-romance/docs/COMMANDS.md](https://github.com/davidlovcov/mod-romance/blob/main/docs/COMMANDS.md).
 
 ## Tests
 

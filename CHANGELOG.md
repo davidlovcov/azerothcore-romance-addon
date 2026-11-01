@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Character tab: level, XP, gold, bags, gear, quests and spells of the selected companion.
+- Presets: gender-filtered list ("All genders" shows every preset), save / overwrite / delete your own presets, "Reset to preset", "Undo changes".
+- Randomize buttons for story & taste (Personality tab) and for your own story (Player Profile tab).
+- Estrangement shown in the companion list ("Left you (back in ~Nh)") and on the Relationship tab.
+
+### Fixed
+- The header switched to the selected character even when calling it failed (e.g. companion limit reached); it now names the companions that are really active.
+- Error codes such as `limit_reached` are shown as readable messages.
+- Significant moments refresh right after memories change.
+
 ## 1.0.0 — 2026-11-01
 
 First release, for mod-romance 1.0.0 (protocol version 1).
