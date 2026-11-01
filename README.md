@@ -19,6 +19,8 @@ World of Warcraft **3.3.5a** addon (Interface 30300) for the AzerothCore module 
 | ![Relationship](docs/images/relationship.jpg) | ![Settings](docs/images/settings.jpg) |
 | **Relationship** values and stages | **Settings** per companion |
 
+**Memories**: everything she remembers, with source and importance. Edit, pin, delete, add, export or import.
+
 ![Memory viewer](docs/images/memories.jpg)
 
 ## Features
