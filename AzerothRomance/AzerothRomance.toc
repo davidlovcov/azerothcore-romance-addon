@@ -2,7 +2,7 @@
 ## Title: |cffff99ccAzeroth Romance|r
 ## Notes: AI companion & relationship UI for the mod-romance AzerothCore module (Playerbots + Ollama).
 ## Author: mod-romance contributors
-## Version: 1.0.0
+## Version: 1.1.0
 ## SavedVariables: AzerothRomanceDB
 ## X-License: GPL-2.0-or-later
 ## X-Website: https://github.com/davidlovcov/azerothcore-romance-addon

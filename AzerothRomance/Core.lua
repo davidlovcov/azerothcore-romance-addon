@@ -10,7 +10,7 @@
 local AR = _G.AzerothRomance
 local Protocol = AR.Protocol
 
-AR.version = "1.0.0"
+AR.version = "1.1.0"
 AR.state = {
     connected = false,
     hello = nil,

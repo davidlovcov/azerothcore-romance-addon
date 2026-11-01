@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 — 2026-11-01
+
+For mod-romance 1.1.0 (protocol version 1, new ops are additive).
 
 ### Added
 - Character tab: level, XP, gold, bags, gear, quests and spells of the selected companion.
