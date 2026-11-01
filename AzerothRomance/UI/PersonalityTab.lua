@@ -237,7 +237,7 @@ local function build(f)
         AR:Request("save_personality", { guid = g, personality = p }, function(msg)
             if msg.op == "ack" then
                 local notes = msg.notes and #msg.notes > 0 and (" (" .. table.concat(msg.notes, ", ") .. ")") or ""
-                status:SetText(msg.ok and ("|cff60ff60Saved.|r" .. notes) or ("|cffff6060" .. tostring(msg.code) .. "|r"))
+                status:SetText(msg.ok and ("|cff60ff60Saved.|r" .. notes) or ("|cffff6060" .. AR:AckText(msg) .. "|r"))
             end
         end)
     end)

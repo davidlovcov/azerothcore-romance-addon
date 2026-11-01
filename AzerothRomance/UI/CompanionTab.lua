@@ -142,7 +142,7 @@ local function build(f)
             if msg.op == "ack" and msg.ok then
                 AR:Print("Calling your companion...")
             elseif msg.op == "ack" then
-                AR:Print("|cffff6060Cannot call: " .. tostring(msg.code) .. "|r")
+                AR:Print("|cffff6060Cannot call: " .. AR:AckText(msg) .. "|r")
             end
             AR:Request("list_chars")
         end)

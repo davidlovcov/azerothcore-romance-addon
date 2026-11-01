@@ -95,6 +95,15 @@ serverSend({ op = "chars", maxActive = 1, chars = {
     { guid = 3, name = "Lyra", race = 4, raceName = "Night Elf", class = 5, className = "Priest", level = 70, status = "online_player", reason = "Logged in by a player." },
 } })
 check(#AR.state.chars == 2, "character list stored")
+check(#AR:ActiveNames() == 0, "no active companion yet")
+-- selecting a companion that failed to join must not change the header
+AR.state.selected = 3
+AR.UI:RefreshStatus()
+check((AR.UI.subtitle:GetText() or "") == "", "header empty while nobody is active")
+check(AR:AckText({ code = "limit_reached", message = "You already have the maximum number of AI companions (3)." }):find("maximum") ~= nil,
+    "readable ack message preferred over code")
+check(AR:AckText({ code = "x" }) == "x", "ack code fallback")
+AR.state.selected = nil
 
 -- 3. select Elara, receive companion --------------------------------------------------
 AR:Select(2)

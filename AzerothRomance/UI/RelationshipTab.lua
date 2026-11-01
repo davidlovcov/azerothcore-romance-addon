@@ -113,7 +113,7 @@ local function build(f)
             popup.data = function()
                 AR:Request("set_relationship", { guid = g, stage = st, romantic = romantic:GetChecked() and true or false,
                     backstory = backstory:GetValue() }, function(msg)
-                    if msg.op == "ack" and not msg.ok then AR:Print("|cffff6060" .. tostring(msg.code) .. "|r") end
+                    if msg.op == "ack" and not msg.ok then AR:Print("|cffff6060" .. AR:AckText(msg) .. "|r") end
                 end)
             end
         end

@@ -141,6 +141,7 @@ handlers.chars = function(msg)
     AR.state.chars = msg.chars or {}
     AR.state.maxActive = msg.maxActive
     AR:Fire("CHARS_CHANGED")
+    AR:Fire("STATUS_CHANGED")
 end
 
 handlers.chars_changed = function()
@@ -311,6 +312,21 @@ function AR:ClassColor(classId)
     local c = token and RAID_CLASS_COLORS and RAID_CLASS_COLORS[token]
     if c then return c.r, c.g, c.b end
     return 0.9, 0.9, 0.9
+end
+
+-- Names of the companions whose AI is active right now, in list order.
+function AR:ActiveNames()
+    local names = {}
+    for _, c in ipairs(self.state.chars or {}) do
+        if c.active then table.insert(names, c.name) end
+    end
+    return names
+end
+
+-- Readable text for a failed ack: the server sends `message`; older servers only `code`.
+function AR:AckText(msg)
+    if msg.message and msg.message ~= "" then return msg.message end
+    return tostring(msg.code or "unknown error")
 end
 
 function AR:FindChar(guid)

@@ -133,7 +133,7 @@ local function build(f)
         status:SetText("Saving...")
         AR:Request("save_settings", { guid = g, settings = s }, function(msg)
             if msg.op == "ack" then
-                status:SetText(msg.ok and "|cff60ff60Saved.|r" or ("|cffff6060" .. tostring(msg.code) .. "|r"))
+                status:SetText(msg.ok and "|cff60ff60Saved.|r" or ("|cffff6060" .. AR:AckText(msg) .. "|r"))
             end
         end)
     end)

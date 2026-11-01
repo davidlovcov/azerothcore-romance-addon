@@ -173,7 +173,7 @@ local function build()
         if data == "" then return end
         AR:Request("import", { guid = MV.guid, data = data }, function(msg)
             if msg.op == "ack" then
-                AR:Print(msg.ok and ("Imported: " .. table.concat(msg.notes or {}, ", ")) or ("|cffff6060Import failed: " .. tostring(msg.code) .. "|r"))
+                AR:Print(msg.ok and ("Imported: " .. table.concat(msg.notes or {}, ", ")) or ("|cffff6060Import failed: " .. AR:AckText(msg) .. "|r"))
                 MV:Load()
             end
         end)

@@ -195,9 +195,11 @@ function UI:RefreshStatus()
         self.light:SetVertexColor(0.95, 0.75, 0.3)
         self.lightText:SetText("Checking Ollama...")
     end
-    local g, comp, char = AR:Selected()
-    if char then
-        self.subtitle:SetText(("with %s"):format(char.name))
+    -- The header names the companions that are really with you, not just the selected one:
+    -- a failed call must not look like a switch.
+    local names = AR:ActiveNames()
+    if #names > 0 then
+        self.subtitle:SetText(("with %s"):format(table.concat(names, ", ")))
     else
         self.subtitle:SetText("")
     end
