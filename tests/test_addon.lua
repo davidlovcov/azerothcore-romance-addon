@@ -204,6 +204,12 @@ check(AR.state.sheets[2] and AR.state.sheets[2].level == 23, "sheet stored")
 stub.Update(11)
 check(findOp(drainRequests(), "get_character_sheet") ~= nil, "sheet refreshes while the tab is open")
 
+-- 5d. estrangement status -----------------------------------------------------------
+local away = AR:CharStatus({ status = "available", estrangedUntil = time() + 5 * 3600 })
+check(away.label:find("Left you") and not away.enabled, "estranged companion cannot be called")
+check(AR:CharStatus({ status = "in_party", estranged = true }).label:find("estranged") ~= nil, "cold companion is marked")
+check(AR:CharStatus({ status = "in_party" }).label == "In your party", "normal status unchanged")
+
 -- 6. chat: send + typing + reply -----------------------------------------------------
 AR.UI:ShowTab("chat")
 AzerothRomanceChatInput:SetText("Hey Elara, ready for an adventure?")

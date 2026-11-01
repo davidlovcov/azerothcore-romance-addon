@@ -33,6 +33,8 @@ local function build(f)
     mood:SetPoint("TOPLEFT", stage, "BOTTOMLEFT", 0, -6)
     local strained = W.Label(left, "", 11, { 1, 0.5, 0.4 })
     strained:SetPoint("TOPLEFT", mood, "BOTTOMLEFT", 0, -4)
+    strained:SetWidth(362)
+    strained:SetJustifyH("LEFT")
 
     -- stage track
     local pips = {}
@@ -140,7 +142,14 @@ local function build(f)
         end
         stage:SetText(r.stageLabel or "")
         mood:SetText(("Mood: %s"):format(((r.mood or "relaxed"):gsub("_", " "))))
-        strained:SetText(r.strained and "Things feel tense between you right now." or "")
+        if r.estranged then
+            strained:SetText(("Estranged: only apologies and kindness over several days win them back (%d/100)."):format(
+                tonumber(r.reconciliation) or 0))
+        elseif (tonumber(r.resentment) or 0) >= 50 then
+            strained:SetText("Deeply hurt - one more insult and they may leave you.")
+        else
+            strained:SetText(r.strained and "Things feel tense between you right now." or "")
+        end
         for key, b in pairs(bars) do b:Set(r.values and r.values[key] or 0) end
         UI.SetShown(bars.attraction, r.romantic ~= false)
         local idx = tonumber(r.stageIndex) or 0

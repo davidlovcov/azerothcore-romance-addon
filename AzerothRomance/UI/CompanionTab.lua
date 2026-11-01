@@ -56,7 +56,7 @@ local function build(f)
             if not self.char then return end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(self.char.name, 1, 0.82, 0.25)
-            local st = AR.STATUS_INFO[self.char.status] or AR.STATUS_INFO.unavailable
+            local st = AR:CharStatus(self.char)
             GameTooltip:AddLine(st.label, st.color[1], st.color[2], st.color[3])
             if self.char.reason and self.char.reason ~= "" then GameTooltip:AddLine(self.char.reason, 1, 1, 1, true) end
             if self.char.linked then GameTooltip:AddLine("From a linked account", 0.7, 0.7, 0.7) end
@@ -88,7 +88,7 @@ local function build(f)
                 r:Hide()
             else
                 r:Show()
-                local st = AR.STATUS_INFO[c.status] or AR.STATUS_INFO.unavailable
+                local st = AR:CharStatus(c)
                 W.SetClassIcon(r.icon, c.class)
                 local cr, cg, cb = AR:ClassColor(c.class)
                 if not st.enabled then cr, cg, cb = 0.5, 0.5, 0.5 end
@@ -198,7 +198,7 @@ local function build(f)
             aiLine:SetText("")
             portrait:SetTexture(nil)
         else
-            local st = AR.STATUS_INFO[char.status] or AR.STATUS_INFO.unavailable
+            local st = AR:CharStatus(char)
             enabled = st.enabled
             name:SetText(char.name)
             name:SetTextColor(AR:ClassColor(char.class))

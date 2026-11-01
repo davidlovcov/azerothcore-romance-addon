@@ -321,6 +321,21 @@ AR.STATUS_INFO = {
     ai_disabled          = { label = "AI companion disabled", color = { 0.70, 0.60, 0.80 }, enabled = true },
 }
 
+-- Status of a character entry, including estrangement (she left you / came back cold).
+function AR:CharStatus(c)
+    if not c then return self.STATUS_INFO.unavailable end
+    local backAt = tonumber(c.estrangedUntil)
+    if backAt and backAt > 0 then
+        local hours = math.max(1, math.ceil((backAt - time()) / 3600))
+        return { label = ("Left you (back in ~%dh)"):format(hours), color = { 0.9, 0.3, 0.3 }, enabled = false }
+    end
+    local st = self.STATUS_INFO[c.status] or self.STATUS_INFO.unavailable
+    if c.estranged then
+        return { label = st.label .. " - estranged", color = { 0.75, 0.45, 0.75 }, enabled = st.enabled }
+    end
+    return st
+end
+
 function AR:ClassColor(classId)
     local token = self.CLASS_TOKENS[tonumber(classId) or 0]
     local c = token and RAID_CLASS_COLORS and RAID_CLASS_COLORS[token]
