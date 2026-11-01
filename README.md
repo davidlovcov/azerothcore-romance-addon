@@ -6,6 +6,21 @@ World of Warcraft **3.3.5a** addon (Interface 30300) for the AzerothCore module 
 
 > This addon only works on servers that run **mod-romance**. All data (characters, relationship, memories, AI) lives on the server; the addon displays it and sends your requests.
 
+## Screenshots
+
+![Companion tab](docs/images/companion.jpg)
+
+| | |
+|---|---|
+| ![Chat](docs/images/chat.jpg) | ![Character sheet](docs/images/character.jpg) |
+| **Chat** with your companion | **Character**: bags, gear, quests, spells |
+| ![Personality](docs/images/personality.jpg) | ![Player profile](docs/images/player-profile.jpg) |
+| **Personality** with presets and randomizer | **Player Profile**: who you are in the roleplay |
+| ![Relationship](docs/images/relationship.jpg) | ![Settings](docs/images/settings.jpg) |
+| **Relationship** values and stages | **Settings** per companion |
+
+![Memory viewer](docs/images/memories.jpg)
+
 ## Features
 
 - **Companion:** your account's characters with level, race, class and live status. Unavailable characters are greyed out and explain why. Call or send home your companions (several at once), and turn their AI on or off. The window header names the companions that are really with you.
