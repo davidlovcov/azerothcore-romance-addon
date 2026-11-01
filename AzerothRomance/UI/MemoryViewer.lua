@@ -1,0 +1,247 @@
+--[[
+  AzerothRomance - Memory viewer: inspect, filter, edit, pin, delete, add, clear,
+  export/import. Every change goes to the authoritative server storage.
+]]
+
+local AR = _G.AzerothRomance
+local W = AR.W
+local UI = AR.UI
+
+local MV = {}
+AR.MemoryViewer = MV
+
+local PAGE = 10
+local KINDS = {
+    { value = "", text = "All memories" }, { value = "fact", text = "Facts" }, { value = "preference", text = "Preferences" },
+    { value = "episode", text = "Shared moments" }, { value = "relationship", text = "Relationship" },
+    { value = "promise", text = "Promises" }, { value = "gift", text = "Gifts" }, { value = "summary", text = "Conversation summaries" },
+}
+local SOURCE_LABEL = {
+    observed = "|cff60ff60seen in game|r", player_stated = "|cffffd76byou said|r", model_summary = "|cffaaaaffsummary|r",
+    interpretation = "|cffaaaaaaher impression|r", user_edited = "|cff60d0ffedited by you|r", profile = "|cffffaaddbackstory|r",
+}
+
+StaticPopupDialogs["AZEROTHROMANCE_EDIT_MEMORY"] = {
+    text = "Edit memory:", button1 = SAVE, button2 = CANCEL, hasEditBox = 1, maxLetters = 300, hasWideEditBox = 1,
+    timeout = 0, whileDead = true, hideOnEscape = true,
+    OnShow = function(self, data)
+        local eb = self.wideEditBox or self.editBox
+        eb:SetText(data and data.text or "")
+        eb:SetFocus()
+    end,
+    OnAccept = function(self, data)
+        local eb = self.wideEditBox or self.editBox
+        if data and data.onAccept then data.onAccept(eb:GetText()) end
+    end,
+    EditBoxOnEnterPressed = function(self)
+        local parent = self:GetParent()
+        local data = parent.data
+        if data and data.onAccept then data.onAccept(self:GetText()) end
+        parent:Hide()
+    end,
+    EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+}
+
+StaticPopupDialogs["AZEROTHROMANCE_CONFIRM"] = {
+    text = "%s", button1 = YES, button2 = NO, timeout = 0, whileDead = true, hideOnEscape = true,
+    OnAccept = function(self, data) if data then data() end end,
+}
+
+StaticPopupDialogs["AZEROTHROMANCE_RESET"] = {
+    text = "This erases |cffff6060everything|r about this companion: personality, relationship, memories and chat history.\n\nType RESET to confirm.",
+    button1 = OKAY, button2 = CANCEL, hasEditBox = 1, maxLetters = 8, timeout = 0, whileDead = true, hideOnEscape = true,
+    OnAccept = function(self, data)
+        local eb = self.editBox
+        if eb:GetText() == "RESET" and data then data() end
+    end,
+}
+
+local function build()
+    local f = W.Panel(UIParent, 640, 500, 0.97)
+    _G.AzerothRomanceMemoryFrame = f
+    f:SetFrameStrata("DIALOG")
+    f:SetPoint("CENTER", 40, -20)
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:SetClampedToScreen(true)
+    tinsert(UISpecialFrames, "AzerothRomanceMemoryFrame")
+    local title = W.Label(f, "Memories", 15, W.GOLD, "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", 14, -12)
+    local who = W.Label(f, "", 11, W.MUTED)
+    who:SetPoint("LEFT", title, "RIGHT", 10, -1)
+    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", -4, -4)
+
+    local kind = W.Dropdown(f, "Show", 200, KINDS, function() MV.offset = 0 MV:Load() end)
+    kind:SetPoint("TOPLEFT", 4, -34)
+    kind:SetValue("")
+    local search = W.Edit(f, "Search", 180, 40)
+    search:SetPoint("TOPLEFT", 216, -34)
+    search.edit:SetScript("OnEnterPressed", function(self) self:ClearFocus() MV.offset = 0 MV:Load() end)
+    local go = W.Button(f, "Filter", 60, 20, function() MV.offset = 0 MV:Load() end)
+    go:SetPoint("TOPLEFT", 404, -48)
+    local total = W.Label(f, "", 11, W.MUTED)
+    total:SetPoint("TOPRIGHT", -16, -52)
+
+    local rows = {}
+    for i = 1, PAGE do
+        local r = CreateFrame("Frame", nil, f)
+        r:SetHeight(32)
+        r:SetPoint("TOPLEFT", 12, -84 - (i - 1) * 34)
+        r:SetPoint("TOPRIGHT", -12, -84 - (i - 1) * 34)
+        local bg = r:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetTexture(1, 1, 1, (i % 2 == 0) and 0.03 or 0.06)
+        r.text = W.Label(r, "", 11, W.TEXT)
+        r.text:SetPoint("TOPLEFT", 6, -3)
+        r.text:SetWidth(440)
+        r.text:SetHeight(14)
+        r.meta = W.Label(r, "", 9, W.MUTED)
+        r.meta:SetPoint("BOTTOMLEFT", 6, 3)
+        r.edit = W.Button(r, "Edit", 44, 18)
+        r.edit:SetPoint("RIGHT", -102, 0)
+        r.pin = W.Button(r, "Pin", 44, 18)
+        r.pin:SetPoint("RIGHT", -54, 0)
+        r.del = W.Button(r, "Delete", 50, 18)
+        r.del:SetPoint("RIGHT", -2, 0)
+        r:EnableMouse(true)
+        r:SetScript("OnEnter", function(self)
+            if not self.mem then return end
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:SetText(self.mem.text, 1, 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        r:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        rows[i] = r
+    end
+
+    local prev = W.Button(f, "< Newer", 80, 22, function() MV.offset = math.max(0, MV.offset - PAGE) MV:Load() end)
+    prev:SetPoint("BOTTOMLEFT", 12, 44)
+    local nextB = W.Button(f, "Older >", 80, 22, function() MV.offset = MV.offset + PAGE MV:Load() end)
+    nextB:SetPoint("LEFT", prev, "RIGHT", 6, 0)
+
+    local add = W.Button(f, "Add memory", 100, 22, function()
+        local popup = StaticPopup_Show("AZEROTHROMANCE_EDIT_MEMORY")
+        if popup then
+            popup.data = { text = "", onAccept = function(text)
+                AR:Request("add_memory", { guid = MV.guid, kind = (kind:GetValue() ~= "" and kind:GetValue() ~= "summary") and kind:GetValue() or "fact",
+                    text = text, importance = 60 }, function() MV:Load() end)
+            end }
+        end
+    end)
+    add:SetPoint("LEFT", nextB, "RIGHT", 20, 0)
+    local clear = W.Button(f, "Clear shown kind", 120, 22, function()
+        local k = kind:GetValue()
+        local label = k == "" and "ALL memories" or ("all memories of this kind (" .. k .. ")")
+        local popup = StaticPopup_Show("AZEROTHROMANCE_CONFIRM", "Delete " .. label .. "?")
+        if popup then
+            popup.data = function()
+                AR:Request("clear_memories", { guid = MV.guid, kind = k ~= "" and k or nil }, function() MV.offset = 0 MV:Load() end)
+            end
+        end
+    end)
+    clear:SetPoint("LEFT", add, "RIGHT", 6, 0)
+    local reset = W.Button(f, "Full reset...", 100, 22, function()
+        local popup = StaticPopup_Show("AZEROTHROMANCE_RESET")
+        if popup then
+            popup.data = function()
+                AR:Request("reset_companion", { guid = MV.guid, confirm = "RESET" }, function() MV.offset = 0 MV:Load() end)
+            end
+        end
+    end)
+    reset:SetPoint("LEFT", clear, "RIGHT", 6, 0)
+
+    -- export / import area
+    local ioArea = W.TextArea(f, "Export / import (JSON)", 470, 22, 16000)
+    ioArea:SetPoint("BOTTOMLEFT", 12, 4)
+    local export = W.Button(f, "Export", 60, 20, function()
+        AR:Request("export", { guid = MV.guid }, function(msg)
+            if msg.op == "export_data" then
+                ioArea:SetValue(msg.data or "")
+                ioArea.edit:HighlightText()
+                ioArea.edit:SetFocus()
+                AR:Print("Export ready: press Ctrl+C to copy.")
+            end
+        end)
+    end)
+    export:SetPoint("BOTTOMRIGHT", -80, 10)
+    local import = W.Button(f, "Import", 60, 20, function()
+        local data = ioArea:GetValue()
+        if data == "" then return end
+        AR:Request("import", { guid = MV.guid, data = data }, function(msg)
+            if msg.op == "ack" then
+                AR:Print(msg.ok and ("Imported: " .. table.concat(msg.notes or {}, ", ")) or ("|cffff6060Import failed: " .. tostring(msg.code) .. "|r"))
+                MV:Load()
+            end
+        end)
+    end)
+    import:SetPoint("LEFT", export, "RIGHT", 6, 0)
+
+    MV.frame, MV.rows, MV.kind, MV.search, MV.total, MV.who, MV.prev, MV.next = f, rows, kind, search, total, who, prev, nextB
+    AR:On("MEMORY_CHANGED", function(g) if f:IsShown() and g == MV.guid then MV:Load() end end)
+end
+
+function MV:Open(guid)
+    guid = guid or AR.state.selected
+    if not guid then
+        AR:Print("Select a companion first.")
+        return
+    end
+    if not self.frame then build() end
+    self.guid = guid
+    self.offset = 0
+    local c = AR:FindChar(guid)
+    self.who:SetText(c and ("of " .. c.name) or "")
+    self.frame:Show()
+    self:Load()
+end
+
+function MV:Load()
+    if not self.frame or not self.guid then return end
+    local kind = self.kind:GetValue()
+    AR:Request("get_memories", { guid = self.guid, kind = kind ~= "" and kind or nil, search = self.search:GetValue(),
+        offset = self.offset or 0, limit = PAGE }, function(msg)
+        if msg.op ~= "memories" then return end
+        self:Render(msg)
+    end)
+end
+
+function MV:Render(msg)
+    local items = msg.items or {}
+    local n = tonumber(msg.total) or 0
+    self.total:SetText(("%d memories"):format(n))
+    if (self.offset or 0) > 0 then self.prev:Enable() else self.prev:Disable() end
+    if (self.offset or 0) + PAGE < n then self.next:Enable() else self.next:Disable() end
+    for i, r in ipairs(self.rows) do
+        local m = items[i]
+        r.mem = m
+        if not m then
+            r:Hide()
+        else
+            r:Show()
+            r.text:SetText((m.pinned and "|cffffd100*|r " or "") .. m.text)
+            r.meta:SetText(("%s  |  %s  |  importance %d  |  %s"):format(m.kind or "?", SOURCE_LABEL[m.source] or m.source or "?",
+                tonumber(m.importance) or 0, date("%d.%m.%Y %H:%M", tonumber(m.createdAt) or 0)))
+            r.pin:SetText(m.pinned and "Unpin" or "Pin")
+            r.edit:SetScript("OnClick", function()
+                local popup = StaticPopup_Show("AZEROTHROMANCE_EDIT_MEMORY")
+                if popup then
+                    popup.data = { text = m.text, onAccept = function(text)
+                        AR:Request("edit_memory", { guid = self.guid, id = m.id, text = text }, function() self:Load() end)
+                    end }
+                    local eb = popup.wideEditBox or popup.editBox
+                    eb:SetText(m.text)
+                end
+            end)
+            r.pin:SetScript("OnClick", function()
+                AR:Request("pin_memory", { guid = self.guid, id = m.id, pinned = not m.pinned }, function() self:Load() end)
+            end)
+            r.del:SetScript("OnClick", function()
+                AR:Request("delete_memory", { guid = self.guid, id = m.id }, function() self:Load() end)
+            end)
+        end
+    end
+end

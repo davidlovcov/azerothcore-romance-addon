@@ -1,0 +1,22 @@
+## Interface: 30300
+## Title: |cffff99ccAzeroth Romance|r
+## Notes: AI companion & relationship UI for the mod-romance AzerothCore module (Playerbots + Ollama).
+## Author: mod-romance contributors
+## Version: 1.0.0
+## SavedVariables: AzerothRomanceDB
+## X-License: GPL-2.0-or-later
+## X-Website: https://github.com/davidlovcov/azerothcore-romance-addon
+
+Libs\Json.lua
+Libs\Protocol.lua
+Core.lua
+UI\Widgets.lua
+UI\MainFrame.lua
+UI\CompanionTab.lua
+UI\ChatTab.lua
+UI\PersonalityTab.lua
+UI\ProfileTab.lua
+UI\RelationshipTab.lua
+UI\SettingsTab.lua
+UI\DebugTab.lua
+UI\MemoryViewer.lua
