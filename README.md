@@ -25,6 +25,7 @@ World of Warcraft **3.3.5a** addon (Interface 30300) for the AzerothCore module 
 With git:
 ```bash
 git clone https://github.com/davidlovcov/azerothcore-romance-addon.git
+# or with SSH: git clone git@github.com:davidlovcov/azerothcore-romance-addon.git
 # copy or symlink azerothcore-romance-addon/AzerothRomance into Interface/AddOns/
 ```
 **Updating:** run `git pull` (or download again), then `/reload` in game.
