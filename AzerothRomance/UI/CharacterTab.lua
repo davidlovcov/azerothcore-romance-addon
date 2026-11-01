@@ -127,6 +127,14 @@ local function build(f)
                 table.insert(lines, "   |cffaaaaaa" .. q.progress .. "|r")
             end
         end
+        if sheet.available and #sheet.available > 0 then
+            table.insert(lines, " ")
+            table.insert(lines, "|cffffd100Available nearby|r |cff888888(say \"pick up your quests\")|r")
+            for _, q in ipairs(sheet.available) do
+                table.insert(lines, ("|cffffd100[%d]|r %s%s"):format(q.level or 0, q.title or "?", q.classQuest and " |cff9ad2ff(class)|r" or ""))
+                table.insert(lines, ("   |cffaaaaaa%s, %d yd %s|r"):format(q.giver or "?", q.distance or 0, q.direction or ""))
+            end
+        end
         quests:SetLines(lines, #(sheet.quests or {}))
 
         lines = {}

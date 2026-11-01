@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Character tab: "Available nearby" lists quests the companion could pick up around you (giver, distance, direction, class quests marked).
+
 ## 1.1.0 — 2026-11-01
 
 For mod-romance 1.1.0 (protocol version 1, new ops are additive).

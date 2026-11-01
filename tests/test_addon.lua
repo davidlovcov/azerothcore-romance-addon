@@ -199,7 +199,8 @@ serverSend({ op = "character_sheet", req = gs and gs.req, guid = 2, name = "Elar
     items = { { name = "Linen Cloth", count = 12, quality = 1 }, { name = "Broken Tooth", count = 3, quality = 0 } },
     gear = { { slot = 4, name = "Robe of Power", quality = 3 } },
     spells = { { id = 133, name = "Fireball" } },
-    quests = { { title = "Kobold Camp Cleanup", level = 7, progress = "Kobold Vermin 4/10", shared = true } } })
+    quests = { { title = "Kobold Camp Cleanup", level = 7, progress = "Kobold Vermin 4/10", shared = true } },
+    available = { { title = "Arcane Instruction", level = 4, giver = "Khelden Bremen", distance = 120, direction = "north-east", classQuest = true } } })
 check(AR.state.sheets[2] and AR.state.sheets[2].level == 23, "sheet stored")
 stub.Update(11)
 check(findOp(drainRequests(), "get_character_sheet") ~= nil, "sheet refreshes while the tab is open")
