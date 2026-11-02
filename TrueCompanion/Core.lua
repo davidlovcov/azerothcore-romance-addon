@@ -10,7 +10,7 @@
 local TC = _G.TrueCompanion
 local Protocol = TC.Protocol
 
-TC.version = "2.0.0-dev"
+TC.version = "2.0.0"
 TC.state = {
     connected = false,
     hello = nil,

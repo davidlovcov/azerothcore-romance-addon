@@ -2,7 +2,7 @@
 ## Title: |cfff2e6c8True Companion|r
 ## Notes: AI companions for the mod-true-companion AzerothCore module (Playerbots + Ollama).
 ## Author: davidlovcov
-## Version: 2.0.0-dev
+## Version: 2.0.0
 ## SavedVariables: TrueCompanionDB, AzerothRomanceDB
 ## X-License: GPL-2.0-or-later
 ## X-Website: https://github.com/davidlovcov/azerothcore-true-companion-addon

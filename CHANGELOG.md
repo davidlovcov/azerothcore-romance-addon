@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (2.0.0)
+## 2.0.0 — 2026-11-03
 
 ### Renamed: AzerothRomance is now True Companion
 - Addon folder `TrueCompanion`, `/tc` or `/companion`, new logo (window and minimap button) and colours. Romantic relationships stay a per-companion option ("Romantic relationship possible"). Needs mod-true-companion 2.0 (the module was renamed too).
