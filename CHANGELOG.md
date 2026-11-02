@@ -3,9 +3,11 @@
 ## Unreleased
 
 ### Fixed
+- Imports of many memories stopped with "Too many requests, slow down" (and repeated the message): the addon now sends at a steady pace below the server's limit, and shows that message at most every 10 seconds.
 - Export / import of many memories: transfers now run in pages with progress, a timeout and a clear error; an import changes nothing unless every part arrived. Exports too large for the text box are saved in the addon's saved variables, and "Import" with an empty box imports the last saved export.
 
 ### Changed
+- Export / import has its own window: "Export" saves the memories in the addon and shows the text to copy; "Import..." lets you pick a saved export (the last one is preselected) or paste one. No more tiny text box.
 - Playerbots' command feedback ("Following", "attack rti target: useless", quest notices) from your AI companions is hidden in the chat window and kept as gray `[Playerbots]` lines in the Chat tab. Answers to plain Playerbots commands still show. Settings tab: "Hide Playerbots feedback". Needs mod-romance 1.1.1.
 - Neutral wording in the Settings and Character tabs and the README, since companions can be male or female.
 

@@ -154,78 +154,178 @@ local function build()
     end)
     reset:SetPoint("LEFT", clear, "RIGHT", 6, 0)
 
-    -- export / import area
-    local ioArea = W.TextArea(f, "Export / import (JSON)", 470, 22, 16000)
-    ioArea:SetPoint("BOTTOMLEFT", 12, 4)
-    local ioStatus = W.Label(f, "", 10, W.MUTED)
-    ioStatus:SetPoint("BOTTOMLEFT", ioArea, "TOPLEFT", 160, 4)
-    ioStatus:SetWidth(330)
-    local MAX_SHOWN = 16000   -- the text box holds this many characters; bigger exports are kept in saved variables
-
-    local function companionName()
-        local c = AR:FindChar(MV.guid)
-        return c and c.name or tostring(MV.guid)
-    end
-
-    local export = W.Button(f, "Export", 60, 20, function()
-        if not MV.guid then return end
-        ioStatus:SetText("Exporting...")
-        AR.Transfer:Export(MV.guid, function(i, n) ioStatus:SetText(("Exporting part %d/%d..."):format(i, n)) end,
-            function(text, count)
-                if not text then
-                    ioStatus:SetText("|cffff6060Export failed: " .. tostring(count) .. "|r")
-                    return
-                end
-                local name = companionName()
-                AzerothRomanceDB.exports = AzerothRomanceDB.exports or {}
-                AzerothRomanceDB.exports[name] = { at = time(), memories = count, text = text }
-                AzerothRomanceDB.lastExport = name
-                local size = ("%d memories, %.1f KB"):format(count or 0, #text / 1024)
-                if #text <= MAX_SHOWN then
-                    ioArea:SetValue(text)
-                    ioArea.edit:HighlightText()
-                    ioArea.edit:SetFocus()
-                    ioStatus:SetText("Export ready (" .. size .. "): Ctrl+C to copy. Also saved.")
-                else
-                    ioArea:SetValue("")
-                    ioStatus:SetText("Export saved (" .. size .. "), too large for this box.")
-                    AR:Print(("Export of %s saved (%s). It is too large to show; it is written to " ..
-                        "WTF/Account/<account>/SavedVariables/AzerothRomance.lua on /reload or logout. " ..
-                        "\"Import\" with an empty box imports it."):format(name, size))
-                end
-            end)
+    -- backup: export / import (the text itself lives in a separate dialog)
+    local ioLabel = W.Label(f, "Backup", 11, W.GOLD_DIM)
+    ioLabel:SetPoint("BOTTOMLEFT", 14, 15)
+    local export = W.Button(f, "Export", 70, 20, function()
+        if MV.guid then MV:Export() end
     end)
-    export:SetPoint("BOTTOMRIGHT", -80, 10)
-    local import = W.Button(f, "Import", 60, 20, function()
-        if not MV.guid then return end
-        local text, source = ioArea:GetValue(), "the text box"
-        if text == "" then
-            local saved = AzerothRomanceDB.exports and AzerothRomanceDB.lastExport and AzerothRomanceDB.exports[AzerothRomanceDB.lastExport]
-            if not saved then
-                ioStatus:SetText("Paste an export into the box first.")
-                return
-            end
-            text, source = saved.text, "the saved export of " .. AzerothRomanceDB.lastExport
-        elseif #text >= MAX_SHOWN then
-            ioStatus:SetText("|cffff6060The box is full, so the pasted text was probably cut off. Use a saved export instead.|r")
-            return
-        end
-        ioStatus:SetText("Importing from " .. source .. "...")
-        AR.Transfer:Import(MV.guid, text, function(i, n) ioStatus:SetText(("Importing part %d/%d..."):format(i, n)) end,
-            function(ok, result)
-                if ok then
-                    ioStatus:SetText("|cff60ff60Imported:|r " .. table.concat(result or {}, ", "))
-                    MV.offset = 0
-                    MV:Load()
-                else
-                    ioStatus:SetText("|cffff6060Import failed, nothing was changed: " .. tostring(result) .. "|r")
-                end
-            end)
+    export:SetPoint("LEFT", ioLabel, "RIGHT", 8, 0)
+    W.Tooltip(export, "Export", "Saves all memories of this companion in the addon, and shows the text so you can copy it.")
+    local import = W.Button(f, "Import...", 80, 20, function()
+        if MV.guid then MV:ShowTransfer("import") end
     end)
     import:SetPoint("LEFT", export, "RIGHT", 6, 0)
+    W.Tooltip(import, "Import", "Adds memories from a saved export or from pasted text to this companion.")
+    local ioStatus = W.Label(f, "", 10, W.MUTED)
+    ioStatus:SetPoint("LEFT", import, "RIGHT", 10, 0)
+    ioStatus:SetWidth(330)
+    MV.ioStatus = ioStatus
 
     MV.frame, MV.rows, MV.kind, MV.search, MV.total, MV.who, MV.prev, MV.next = f, rows, kind, search, total, who, prev, nextB
     AR:On("MEMORY_CHANGED", function(g) if f:IsShown() and g == MV.guid then MV:Load() end end)
+end
+
+-- ---------------------------------------------------------------- export / import
+
+local MAX_SHOWN = 16000   -- the text box holds this many characters; bigger exports are only kept saved
+
+local function companionName(guid)
+    local c = AR:FindChar(guid)
+    return c and c.name or tostring(guid)
+end
+
+local function savedExports()
+    AzerothRomanceDB.exports = AzerothRomanceDB.exports or {}
+    return AzerothRomanceDB.exports
+end
+
+-- Dialog that shows an export or takes an import.
+local function buildTransfer()
+    local d = W.Panel(UIParent, 500, 360, 0.98)
+    _G.AzerothRomanceTransferFrame = d
+    d:SetFrameStrata("FULLSCREEN_DIALOG")
+    d:SetPoint("CENTER", 0, 20)
+    d:EnableMouse(true)
+    d:SetMovable(true)
+    d:RegisterForDrag("LeftButton")
+    d:SetScript("OnDragStart", d.StartMoving)
+    d:SetScript("OnDragStop", d.StopMovingOrSizing)
+    d:SetClampedToScreen(true)
+    tinsert(UISpecialFrames, "AzerothRomanceTransferFrame")
+    d.title = W.Label(d, "", 14, W.GOLD, "GameFontNormalLarge")
+    d.title:SetPoint("TOPLEFT", 14, -12)
+    local close = CreateFrame("Button", nil, d, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", -4, -4)
+    d.help = W.Label(d, "", 11, W.TEXT)
+    d.help:SetPoint("TOPLEFT", 14, -36)
+    d.help:SetWidth(470)
+    d.saved = W.Dropdown(d, "Saved export", 300, {}, function() d.area:SetValue("") end)
+    d.saved:SetPoint("TOPLEFT", 10, -84)
+    d.area = W.TextArea(d, "", 472, 170, MAX_SHOWN)
+    d.area:SetPoint("TOPLEFT", 14, -132)
+    d.status = W.Label(d, "", 11, W.MUTED)
+    d.status:SetPoint("BOTTOMLEFT", 14, 16)
+    d.status:SetWidth(300)
+    d.go = W.Button(d, "Import", 110, 22, function() MV:RunImport() end)
+    d.go:SetPoint("BOTTOMRIGHT", -12, 10)
+    d.cancel = W.Button(d, "Close", 80, 22, function() d:Hide() end)
+    d.cancel:SetPoint("RIGHT", d.go, "LEFT", -6, 0)
+    return d
+end
+
+function MV:ShowTransfer(mode, text, info)
+    local d = self.transfer or buildTransfer()
+    self.transfer = d
+    d.mode = mode
+    local name = companionName(self.guid)
+    d.status:SetText("")
+    if mode == "export" then
+        d.title:SetText("Export of " .. name)
+        d.help:SetText("The export is saved in the addon. To import it into a companion, open its Memories and press " ..
+            "\"Import...\" - no copying needed.\nTo keep it somewhere else, press Ctrl+C now to copy the text below.")
+        d.saved:Hide()
+        d.area:ClearAllPoints()
+        d.area:SetPoint("TOPLEFT", 14, -84)
+        d.area.caption:SetText(info or "")
+        d.area:SetValue(text or "")
+        d.go:Hide()
+        d:Show()
+        d.area.edit:SetFocus()
+        d.area.edit:HighlightText()
+        return
+    end
+    d.title:SetText("Import into " .. name)
+    d.help:SetText("Choose a saved export, or paste an export (Ctrl+V) into the box. Imported memories are added; " ..
+        "existing ones stay. Nothing changes unless the whole import arrives.")
+    local items = { { value = "", text = "None - use the pasted text" } }
+    local names = {}
+    for n in pairs(savedExports()) do names[#names + 1] = n end
+    table.sort(names)
+    for _, n in ipairs(names) do
+        local e = savedExports()[n]
+        items[#items + 1] = { value = n, text = ("%s - %d memories - %s"):format(n, tonumber(e.memories) or 0,
+            date("%d.%m. %H:%M", tonumber(e.at) or 0)) }
+    end
+    d.saved:SetItems(items)
+    local last = AzerothRomanceDB.lastExport
+    d.saved:SetValue(savedExports()[last or ""] and last or "")
+    d.saved:Show()
+    d.area:ClearAllPoints()
+    d.area:SetPoint("TOPLEFT", 14, -132)
+    d.area.caption:SetText("Or paste an export here")
+    d.area:SetValue("")
+    d.go:SetText("Import")
+    d.go:Show()
+    d.go:Enable()
+    d:Show()
+end
+
+function MV:Export()
+    local guid = self.guid
+    local status = self.ioStatus
+    status:SetText("Exporting...")
+    AR.Transfer:Export(guid, function(i, n) status:SetText(("Exporting part %d/%d..."):format(i, n)) end,
+        function(text, count)
+            if not text then
+                status:SetText("|cffff6060Export failed: " .. tostring(count) .. "|r")
+                return
+            end
+            local name = companionName(guid)
+            savedExports()[name] = { at = time(), memories = count, text = text }
+            AzerothRomanceDB.lastExport = name
+            local size = ("%d memories, %.1f KB"):format(count or 0, #text / 1024)
+            status:SetText("|cff60ff60Saved|r (" .. size .. ").")
+            if #text <= MAX_SHOWN then
+                self:ShowTransfer("export", text, size)
+            else
+                self:ShowTransfer("export", "", size .. " - too large to show here. It is saved in the addon " ..
+                    "(and in WTF/Account/<account>/SavedVariables/AzerothRomance.lua after /reload).")
+            end
+        end)
+end
+
+function MV:RunImport()
+    local d = self.transfer
+    local guid = self.guid
+    if not d or not guid then return end
+    local text, source = d.area:GetValue(), "the pasted text"
+    if text == "" then
+        local pick = d.saved:GetValue()
+        local saved = pick and pick ~= "" and savedExports()[pick]
+        if not saved then
+            d.status:SetText("|cffff6060Choose a saved export or paste one first.|r")
+            return
+        end
+        text, source = saved.text, "the saved export of " .. pick
+    elseif #text >= MAX_SHOWN then
+        d.status:SetText("|cffff6060The pasted text was cut off (too long). Use a saved export instead.|r")
+        return
+    end
+    d.go:Disable()
+    d.status:SetText("Importing from " .. source .. "...")
+    AR.Transfer:Import(guid, text, function(i, n) d.status:SetText(("Importing part %d/%d..."):format(i, n)) end,
+        function(ok, result)
+            d.go:Enable()
+            if ok then
+                d.status:SetText("|cff60ff60Done:|r " .. table.concat(result or {}, ", "))
+                self.ioStatus:SetText("|cff60ff60Imported:|r " .. table.concat(result or {}, ", "))
+                self.offset = 0
+                self:Load()
+            else
+                d.status:SetText("|cffff6060Import failed, nothing was changed: " .. tostring(result) .. "|r")
+            end
+        end)
 end
 
 function MV:Open(guid)

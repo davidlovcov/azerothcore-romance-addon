@@ -107,7 +107,7 @@ local Sender = {}
 Sender.__index = Sender
 
 function Protocol.NewSender(sendFunc)
-    return setmetatable({ queue = {}, send = sendFunc, nextId = 1, burst = 0, wait = 0, acc = 0 }, Sender)
+    return setmetatable({ queue = {}, send = sendFunc, nextId = 1, acc = Sender.BURST }, Sender)
 end
 
 function Sender:Queue(msg)
@@ -120,32 +120,17 @@ function Sender:Queue(msg)
     return id
 end
 
-Sender.RATE = 20          -- chunks per second
-Sender.BURST = 40         -- chunks before a pause that resets the server flood counter
-Sender.PAUSE = 1.2
+-- Token bucket that stays well below the server's limit (mod-romance: 20 chunks/s, burst 80, plus 2 per
+-- complete request), so long transfers (imports of many memories) never run into "Too many requests".
+Sender.RATE = 10          -- chunks per second, sustained
+Sender.BURST = 30         -- chunks that may go out at once after a quiet moment
 
 function Sender:Update(elapsed)
-    if #self.queue == 0 then
-        self.burst = 0
-        return
-    end
-    if self.wait > 0 then
-        self.wait = self.wait - elapsed
-        return
-    end
-    self.acc = self.acc + elapsed * Sender.RATE
+    self.acc = math.min(Sender.BURST, self.acc + elapsed * Sender.RATE)
     while self.acc >= 1 and #self.queue > 0 do
         self.acc = self.acc - 1
         self.send(table.remove(self.queue, 1))
-        self.burst = self.burst + 1
-        if self.burst >= Sender.BURST then
-            self.burst = 0
-            self.wait = Sender.PAUSE
-            self.acc = 0
-            return
-        end
     end
-    if self.acc > 2 then self.acc = 2 end
 end
 
 function Sender:Pending()

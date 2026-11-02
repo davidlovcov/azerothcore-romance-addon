@@ -233,7 +233,10 @@ end
 handlers.error = function(msg)
     local text = (msg.message and msg.message ~= "") and msg.message or msg.code or "unknown error"
     AR:LogError(msg["for"] or "server", (msg.code or "") .. ": " .. text)
-    if msg.code ~= "protocol" then
+    -- "Too many requests" once in a while, not once per rejected request
+    local quiet = msg.code == "rate_limited" and AR.lastRateLimitNote and GetTime() - AR.lastRateLimitNote < 10
+    if msg.code == "rate_limited" and not quiet then AR.lastRateLimitNote = GetTime() end
+    if msg.code ~= "protocol" and not quiet then
         AR:Print("|cffff6060" .. text .. "|r")
     end
     if msg.code == "busy" or msg.code == "not_active" then

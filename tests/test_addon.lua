@@ -257,6 +257,37 @@ do
     check(not T:Busy(), "a failed transfer frees the slot")
     T:Import(2, "{\"format\":\"mod-romance-export\",\"memories\":[", nil, function(ok, err) done = { ok = ok, err = err } end)
     check(done and not done.ok and done.err:find("cut off"), "truncated paste is rejected before sending")
+
+    -- the import dialog: a saved export is preselected and imported without pasting anything
+    local MV = AR.MemoryViewer
+    AzerothRomanceDB.exports = { Elara = { at = 1000, memories = 3, text = result.text } }
+    AzerothRomanceDB.lastExport = "Elara"
+    MV:Open(2)
+    drainRequests()
+    MV:ShowTransfer("import")
+    check(AzerothRomanceTransferFrame and AzerothRomanceTransferFrame:IsShown(), "import dialog opens")
+    check(MV.transfer.saved:GetValue() == "Elara", "the last saved export is preselected")
+    check(#MV.transfer.saved.items == 2, "saved exports are listed")
+    MV:RunImport()
+    check(findOp(drainRequests(), "import_begin") ~= nil, "importing a saved export needs no pasting")
+    stub.Advance(T.TIMEOUT + 1)
+    stub.Update(0.1)
+    MV.transfer.saved:SetValue("")
+    MV:RunImport()
+    check(MV.transfer.status:GetText():find("Choose a saved export"), "nothing chosen: clear hint")
+    MV.transfer:Hide()
+end
+
+-- 5f. sender pacing stays below the server's limit (20 chunks/s, burst 80) ----------------
+do
+    local sent = 0
+    local s = Protocol.NewSender(function() sent = sent + 1 end)
+    for _ = 1, 400 do s.queue[#s.queue + 1] = "x" end
+    s:Update(0.01)
+    check(sent <= 31, "first burst is limited")
+    for _ = 1, 100 do s:Update(0.1) end   -- 10 seconds
+    check(sent <= 30 + 10 * 10 + 1, "sustained rate is limited (" .. sent .. " chunks in 10 s)")
+    check(sent >= 120, "but keeps sending")
 end
 
 -- 6. chat: send + typing + reply -----------------------------------------------------
