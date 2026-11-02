@@ -207,11 +207,46 @@ end
 -- ---------------------------------------------------------------- export / import
 
 local MAX_SHOWN = 16000   -- the text box holds this many characters; bigger exports are only kept saved
-
+local MAX_BACKUPS = 3      -- saved exports kept per companion; older ones are removed
 
 local function savedExports()
     TrueCompanionDB.exports = TrueCompanionDB.exports or {}
     return TrueCompanionDB.exports
+end
+
+-- A saved export belongs to one companion on one realm (names repeat across realms, and a character can be renamed),
+-- and each export is its own backup: the key is realm, companion guid and time. Exports saved by older versions
+-- (keyed by the companion's name only) are kept and still listed.
+local function saveExport(guid, name, count, text)
+    local all = savedExports()
+    local realm = GetRealmName() or "?"
+    local at = time()
+    local key = ("%s#%s#%d"):format(realm, tostring(guid), at)
+    local n = 1
+    while all[key] do   -- two exports within one second
+        n = n + 1
+        key = ("%s#%s#%d-%d"):format(realm, tostring(guid), at, n)
+    end
+    all[key] = { name = name, realm = realm, guid = guid, at = at, memories = count, text = text }
+    -- keep the newest MAX_BACKUPS of this companion
+    local mine = {}
+    for k, e in pairs(all) do
+        if e.realm == realm and tostring(e.guid) == tostring(guid) then mine[#mine + 1] = k end
+    end
+    table.sort(mine, function(a, b)
+        local ta, tb = tonumber(all[a].at) or 0, tonumber(all[b].at) or 0
+        if ta ~= tb then return ta > tb end
+        if #a ~= #b then return #a > #b end   -- same second: "...-2" is newer than "..."
+        return a > b
+    end)
+    for i = MAX_BACKUPS + 1, #mine do all[mine[i]] = nil end
+    return key
+end
+
+local function exportLabel(key, e)
+    local who = e.name or key
+    if e.realm and e.realm ~= (GetRealmName() or "?") then who = who .. " (" .. e.realm .. ")" end
+    return ("%s - %d memories - %s"):format(who, tonumber(e.memories) or 0, date("%d.%m. %H:%M", tonumber(e.at) or 0))
 end
 
 -- Dialog that shows an export or takes an import.
@@ -290,13 +325,17 @@ function MV:ShowTransfer(mode, text, info, guid)
     d.help:SetText("Choose a saved export, or paste an export (Ctrl+V) into the box. Imported memories are added; " ..
         "existing ones stay. Nothing changes unless the whole import arrives.")
     local items = { { value = "", text = "None - use the pasted text" } }
-    local names = {}
-    for n in pairs(savedExports()) do names[#names + 1] = n end
-    table.sort(names)
-    for _, n in ipairs(names) do
-        local e = savedExports()[n]
-        items[#items + 1] = { value = n, text = ("%s - %d memories - %s"):format(n, tonumber(e.memories) or 0,
-            date("%d.%m. %H:%M", tonumber(e.at) or 0)) }
+    local keys = {}
+    for k in pairs(savedExports()) do keys[#keys + 1] = k end
+    -- by companion name, newest first
+    table.sort(keys, function(a, b)
+        local ea, eb = savedExports()[a], savedExports()[b]
+        local na, nb = ea.name or a, eb.name or b
+        if na ~= nb then return na < nb end
+        return (tonumber(ea.at) or 0) > (tonumber(eb.at) or 0)
+    end)
+    for _, k in ipairs(keys) do
+        items[#items + 1] = { value = k, text = exportLabel(k, savedExports()[k]) }
     end
     d.note:Hide()
     d.area:Show()
@@ -324,9 +363,7 @@ function MV:Export()
                 status:SetText("|cffff6060Export failed: " .. tostring(count) .. "|r")
                 return
             end
-            local name = companionName(guid)
-            savedExports()[name] = { at = time(), memories = count, text = text }
-            TrueCompanionDB.lastExport = name
+            TrueCompanionDB.lastExport = saveExport(guid, companionName(guid), count, text)
             local size = ("%d memories, %.1f KB"):format(count or 0, #text / 1024)
             status:SetText("|cff60ff60Saved|r (" .. size .. ").")
             if #text <= MAX_SHOWN then
@@ -350,7 +387,7 @@ function MV:RunImport()
             d.status:SetText("|cffff6060Choose a saved export or paste one first.|r")
             return
         end
-        text, source = saved.text, "the saved export of " .. pick
+        text, source = saved.text, "the saved export of " .. (saved.name or pick)
     elseif #text >= MAX_SHOWN then
         d.status:SetText("|cffff6060The pasted text was cut off (too long). Use a saved export instead.|r")
         return

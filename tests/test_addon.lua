@@ -300,6 +300,31 @@ do
     check(TrueCompanionTransferFrame and TrueCompanionTransferFrame:IsShown(), "import dialog opens")
     check(MV.transfer.saved:GetValue() == "Elara", "the last saved export is preselected")
     check(#MV.transfer.saved.items == 2, "saved exports are listed")
+    -- new exports: per realm and companion, several backups, older saved exports kept
+    local realExport = TC.Transfer.Export
+    TC.Transfer.Export = function(_, guid, onProgress, onDone) onDone("{\"format\":\"mod-true-companion-export\"}", 3) end
+    for i = 1, 4 do
+        stub.Advance(10)
+        MV:Export()
+    end
+    local mine, old = 0, TrueCompanionDB.exports.Elara ~= nil
+    for k, e in pairs(TrueCompanionDB.exports) do
+        if e.realm == "TestRealm" and tostring(e.guid) == "2" then mine = mine + 1 end
+    end
+    check(mine == 3, "the newest three exports of a companion are kept")
+    check(old, "an export saved by an older version is kept")
+    check(TrueCompanionDB.lastExport:find("^TestRealm#2#"), "the last export is keyed by realm and companion")
+    TrueCompanionDB.exports["OtherRealm#2#5"] = { name = "Elara", realm = "OtherRealm", guid = 2, at = 5, memories = 1, text = "{}" }
+    MV:ShowTransfer("import")
+    local otherShown = false
+    for _, it in ipairs(MV.transfer.saved.items) do
+        if it.value == "OtherRealm#2#5" then otherShown = it.text:find("Elara %(OtherRealm%)") ~= nil end
+    end
+    check(otherShown, "the same name on another realm is its own entry, marked with the realm")
+    TC.Transfer.Export = realExport
+    TrueCompanionDB.exports = { Elara = { at = 1000, memories = 3, text = result.text } }
+    TrueCompanionDB.lastExport = "Elara"
+    MV:ShowTransfer("import")
     -- an export that is too large to show has no text box, only the explanation
     MV:ShowTransfer("export", "", "86 memories, 26.5 KB - too large to show here.")
     check(not MV.transfer.area:IsShown() and MV.transfer.note:IsShown(), "large export: no text box, only the note")
