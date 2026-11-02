@@ -64,6 +64,7 @@ local defaults = {
     chat = {},          -- [realm-char][guid] = { {from,text,ts}, ... }
     lastTab = "companion",
     timestamps = true,
+    hideBotFeedback = true,   -- hide Playerbots' command feedback from companions in the chat window
 }
 
 local function copyDefaults(dst, src)
@@ -181,9 +182,14 @@ handlers.chat_msg = function(msg)
     local g = companionGuid(msg)
     AR:AddChatLine(g, msg.from, msg.text, msg.ts)
     if msg.from == "companion" then
+        if AR.ChatFilter then AR.ChatFilter:Expect(g, msg.text) end
         AR.state.typing[g] = nil
         AR:Fire("TYPING_CHANGED", g)
     end
+end
+
+handlers.bot_feedback = function(msg)
+    if AR.ChatFilter then AR.ChatFilter:Allow(msg.name) end
 end
 
 handlers.typing = function(msg)

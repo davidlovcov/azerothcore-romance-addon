@@ -6,6 +6,7 @@
 - Export / import of many memories: transfers now run in pages with progress, a timeout and a clear error; an import changes nothing unless every part arrived. Exports too large for the text box are saved in the addon's saved variables, and "Import" with an empty box imports the last saved export.
 
 ### Changed
+- Playerbots' command feedback ("Following", "attack rti target: useless", quest notices) from your AI companions is hidden in the chat window and kept as gray `[Playerbots]` lines in the Chat tab. Answers to plain Playerbots commands still show. Settings tab: "Hide Playerbots feedback". Needs mod-romance 1.1.1.
 - Neutral wording in the Settings and Character tabs and the README, since companions can be male or female.
 
 ### Added

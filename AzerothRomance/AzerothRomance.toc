@@ -11,6 +11,7 @@ Libs\Json.lua
 Libs\Protocol.lua
 Core.lua
 Transfer.lua
+ChatFilter.lua
 UI\Widgets.lua
 UI\Randomizer.lua
 UI\MainFrame.lua

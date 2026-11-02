@@ -63,6 +63,8 @@ local function build(f)
             return ts .. "|cffffd76b" .. playerName() .. ":|r |cffe8e0d0" .. text .. "|r"
         elseif entry.from == "command" then
             return ts .. "|cff8899aa[command] " .. text .. "|r"
+        elseif entry.from == "system" then
+            return ts .. "|cff808080[Playerbots] " .. text .. "|r"
         else
             return ts .. "|cffff9ccf" .. (compName or "Companion") .. ":|r |cfffff0f6" .. text .. "|r"
         end

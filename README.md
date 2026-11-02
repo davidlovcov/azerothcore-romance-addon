@@ -31,7 +31,7 @@ World of Warcraft **3.3.5a** addon (Interface 30300) for the AzerothCore module 
 - **Personality:** identity, story, 12 trait sliders, response styles, custom instructions and language. Complete presets for female and male companions (e.g. *Anime Girlfriend*, *Gentle Knight*), your own saved presets, **Reset to preset**, **Undo changes** and a **Randomize** button for story & taste.
 - **Player Profile:** who you are in the roleplay, per character or account-wide, with its own randomizer.
 - **Relationship:** stage, mood, all relationship values, significant moments, and the starting relationship.
-- **Settings:** proactive chat, spoken commands, party chat, model and creativity (within the server's limits).
+- **Settings:** proactive chat, spoken commands, party chat, model and creativity (within the server's limits). "Hide Playerbots feedback" keeps lines like "Following" out of your chat window (they stay in the Chat tab, in gray).
 - **Debug:** a small tab with diagnostics, raw model output and the **memory viewer** (filter, edit, pin, delete, add, export and import).
 - Minimap button, `/romance` (or `/ar`), remembered window position.
 

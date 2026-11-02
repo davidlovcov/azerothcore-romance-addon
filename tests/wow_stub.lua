@@ -155,6 +155,19 @@ function stub.FireEvent(event, ...)
     end
 end
 
+-- chat message filters (ChatFrame_AddMessageEventFilter); ChatLine runs them like one chat frame would
+stub.chatFilters = {}
+function ChatFrame_AddMessageEventFilter(event, fn)
+    stub.chatFilters[event] = stub.chatFilters[event] or {}
+    table.insert(stub.chatFilters[event], fn)
+end
+function stub.ChatLine(event, msg, author, lineId)
+    for _, fn in ipairs(stub.chatFilters[event] or {}) do
+        if fn(DEFAULT_CHAT_FRAME, event, msg, author, "", "", "", "", 0, 0, "", 0, lineId) then return true end
+    end
+    return false
+end
+
 function stub.Update(elapsed)
     for _, f in ipairs(stub.frames) do
         if f._scripts.OnUpdate then f._scripts.OnUpdate(f, elapsed) end

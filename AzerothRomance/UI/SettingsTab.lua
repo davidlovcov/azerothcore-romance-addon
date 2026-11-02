@@ -41,7 +41,7 @@ local function build(f)
     save:SetPoint("BOTTOMRIGHT", -10, 8)
 
     -- addon options
-    local right = W.Panel(f, 300, 200)
+    local right = W.Panel(f, 300, 226)
     right:SetPoint("TOPRIGHT", 0, 0)
     local h2 = W.Heading(right, "Addon")
     h2:SetPoint("TOPLEFT", 12, -10)
@@ -57,6 +57,11 @@ local function build(f)
         AR.db.minimap.hide = not self:GetChecked()
         AR:Fire("MINIMAP_TOGGLE")
     end)
+    local quiet = W.Check(right, "Hide Playerbots feedback", "Lines like \"Following\" or \"attack rti target: useless\" from your companions only show in the Chat tab (gray), not in the chat window.")
+    quiet:SetPoint("TOPLEFT", 10, -86)
+    quiet:SetScript("OnClick", function(self)
+        AR.db.hideBotFeedback = self:GetChecked() and true or false
+    end)
     local clearLocal = W.Button(right, "Clear local chat log", 150, 22, function()
         if AR.state.selected then
             local log = AR:ChatLog(AR.state.selected)
@@ -64,11 +69,11 @@ local function build(f)
             AR:Fire("CHAT_CHANGED", AR.state.selected)
         end
     end)
-    clearLocal:SetPoint("TOPLEFT", 14, -94)
+    clearLocal:SetPoint("TOPLEFT", 14, -120)
     local slashHelp = W.Label(right, "/romance  - open or close\n/romance status  - server status\n/romance minimap  - toggle button\n/romance reset window", 10, W.MUTED)
-    slashHelp:SetPoint("TOPLEFT", 14, -126)
+    slashHelp:SetPoint("TOPLEFT", 14, -152)
 
-    local info = W.Panel(f, 300, 230)
+    local info = W.Panel(f, 300, 210)
     info:SetPoint("BOTTOMRIGHT", 0, 0)
     local h3 = W.Heading(info, "Server")
     h3:SetPoint("TOPLEFT", 12, -10)
@@ -98,6 +103,7 @@ local function build(f)
         maxChars:SetValue(tonumber(s.maxReplyChars) or 0)
         ts:SetChecked(AR.db.timestamps)
         mm:SetChecked(not AR.db.minimap.hide)
+        quiet:SetChecked(AR.db.hideBotFeedback ~= false)
         if g then save:Enable() else save:Disable() end
 
         local st = AR.state.status or {}

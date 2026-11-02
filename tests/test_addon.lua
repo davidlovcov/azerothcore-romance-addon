@@ -26,7 +26,7 @@ for _, f in ipairs(files) do
     assert(chunk, err)
     chunk("AzerothRomance", {})
 end
-check(#files == 16, "toc lists 16 files")
+check(#files == 17, "toc lists 17 files")
 local AR = AzerothRomance
 local Protocol = AR.Protocol
 
@@ -333,6 +333,40 @@ stub.FireEvent("CHAT_MSG_ADDON", "ARMN", Protocol.Encode({ op = "chat_msg", guid
 check(AR:ChatLog(2)[#AR:ChatLog(2)].text ~= "hi", "messages from other senders are ignored")
 serverSend({ op = "error", code = "not_owner", message = "That character does not belong to you.", ["for"] = "get_companion" })
 check(#AR.state.errors >= 2, "protocol errors are logged, not thrown")
+
+-- 10b. Playerbots feedback filter ---------------------------------------------------
+do
+    local F = AR.ChatFilter
+    check(F ~= nil and #stub.chatFilters["CHAT_MSG_WHISPER"] == 1, "chat filter registered")
+    local feat = AR.state.hello.features
+    local savedChars = AR.state.chars
+    AR.state.chars = { { guid = 2, name = "Elara", active = true }, { guid = 5, name = "Bob", active = false } }
+    feat.botFeedback = nil
+    check(not stub.ChatLine("CHAT_MSG_WHISPER", "Following", "Elara", 1), "old server: nothing is hidden")
+    feat.botFeedback = true
+    serverSend({ op = "chat_msg", guid = 2, from = "companion", text = "Of course, I'm right behind you.  Lead on!", ts = 1 })
+    check(not stub.ChatLine("CHAT_MSG_WHISPER", "Of course, I'm right behind you. Lead on!", "Elara", 2), "the companion's reply is shown")
+    check(not stub.ChatLine("CHAT_MSG_PARTY", "Lead on!", "Elara", 3), "a piece of a long reply is shown")
+    local before = #AR:ChatLog(2)
+    check(stub.ChatLine("CHAT_MSG_WHISPER", "Following", "Elara", 4), "Playerbots feedback is hidden")
+    check(stub.ChatLine("CHAT_MSG_WHISPER", "Following", "Elara", 4), "same line in a second chat frame is hidden too")
+    local log = AR:ChatLog(2)
+    check(#log == before + 1 and log[#log].from == "system" and log[#log].text == "Following", "hidden line kept once in the Chat tab")
+    check(stub.ChatLine("CHAT_MSG_PARTY", "attack rti target: useless", "Elara-TestRealm", 5), "party feedback with realm name hidden")
+    check(not stub.ChatLine("CHAT_MSG_WHISPER", "Following", "Bob", 6), "bots that aren't active companions are untouched")
+    check(not stub.ChatLine("CHAT_MSG_WHISPER", "lol", "Jaina", 7), "real players are untouched")
+    serverSend({ op = "bot_feedback", guid = 2, name = "Elara" })
+    check(not stub.ChatLine("CHAT_MSG_WHISPER", "Strategies: dps, follow", "Elara", 8), "answer to a plain command is shown")
+    stub.Advance(F.ALLOW_SECONDS + 1)
+    check(stub.ChatLine("CHAT_MSG_WHISPER", "Following", "Elara", 9), "later feedback is hidden again")
+    stub.Advance(F.EXPECT_SECONDS + 1)
+    check(stub.ChatLine("CHAT_MSG_WHISPER", "Lead on!", "Elara", 10), "old replies are forgotten")
+    AR.db.hideBotFeedback = false
+    check(not stub.ChatLine("CHAT_MSG_WHISPER", "Following", "Elara", 11), "setting off: nothing is hidden")
+    AR.db.hideBotFeedback = true
+    feat.botFeedback = nil
+    AR.state.chars = savedChars
+end
 
 -- 11. no unexpected UI errors -------------------------------------------------------
 local unexpected = {}
