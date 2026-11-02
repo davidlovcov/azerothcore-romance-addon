@@ -71,8 +71,8 @@ local function build(f)
     local gear = makeList(f, "Equipped", 502, 150)
     gear:SetPoint("TOPLEFT", 0, -252)
 
-    local hint = W.Label(f, "Ask her in chat: \"what's in your bags?\", \"give me your linen cloth\", \"share your quests\", " ..
-        "\"lead the way\"... See COMMANDS.md for everything she understands.", 10, W.MUTED)
+    local hint = W.Label(f, "Ask in chat: \"what's in your bags?\", \"give me your linen cloth\", \"share your quests\", " ..
+        "\"lead the way\"... See COMMANDS.md for the full list.", 10, W.MUTED)
     hint:SetPoint("TOPLEFT", 508, -256)
     hint:SetWidth(248)
 
@@ -121,7 +121,7 @@ local function build(f)
 
         lines = {}
         for _, q in ipairs(sheet.quests or {}) do
-            local mark = q.complete and "|cff60ff60done|r" or (q.shared and "|cffffd100shared|r" or "|cff888888only hers|r")
+            local mark = q.complete and "|cff60ff60done|r" or (q.shared and "|cffffd100shared|r" or "|cff888888companion only|r")
             table.insert(lines, ("|cffffd100[%d]|r %s  %s"):format(q.level or 0, q.title or "?", mark))
             if q.progress and q.progress ~= "" and not q.complete then
                 table.insert(lines, "   |cffaaaaaa" .. q.progress .. "|r")
