@@ -42,5 +42,45 @@ end
 check(result and result.personality.customInstructions == text, "Lua decoded C++ message intact")
 check(result and result.personality.styles[2] == "sweet", "arrays survive")
 
+-- Paged import of a full export (400 memories): every part must pass the C++ server reassembler (16 KiB, 96 chunks)
+_G.CreateFrame = function() return { SetScript = function() end, Show = function() end } end
+_G.GetTime = function() return 0 end
+dofile(addonDir .. "/Transfer.lua")
+local memories = {}
+for i = 1, 400 do
+    memories[i] = { id = i, kind = "fact", source = "user_edited", importance = 40, pinned = false,
+        text = ("Madox kept a \"souvenir %d\" from Dalaran \195\164\195\182\195\188 \\ with a long note about the trip number %d"):format(i, i) }
+end
+local full = { format = "mod-romance-export", version = 1, companion = "Elara",
+    personality = { name = "Elara", customInstructions = text, styles = AR.Json.Array({ "anime" }) },
+    memories = AR.Json.Array(memories) }
+local pages = AR.Transfer.SplitForImport(full, 2)
+check(pages and #pages > 3, "large export split into several import parts")
+local joinedBack = {}
+for i, page in ipairs(pages or {}) do
+    local req = { op = "import_part", guid = 2, index = i - 1, data = page, req = 999999 }
+    write("/tmp/romance_part.txt", table.concat(AR.Protocol.Encode(req, 500 + i), "\n") .. "\n")
+    local got = read(tool .. " decode < /tmp/romance_part.txt")
+    local back = got ~= "" and AR.Json.Decode(got)
+    check(back and back.data == page, "C++ server accepts import part " .. i .. " (" .. #page .. " bytes)")
+    joinedBack[i] = back and back.data or ""
+end
+local joined = AR.Transfer.JoinPages(joinedBack)
+check(joined and #joined.memories == 400, "all 400 memories survive the paged import")
+check(joined and joined.memories[400].text == memories[400].text, "memory text intact (quotes, UTF-8, backslash)")
+
+-- a server export page (8 KiB of JSON) reaches the addon intact
+local page = AR.Json.Encode({ format = "mod-romance-export", page = 0, pages = 1, memories = AR.Json.Array({ memories[1], memories[2] }),
+    personality = { customInstructions = string.rep("x", 7000) } })
+write("/tmp/romance_msg.json", AR.Json.Encode({ op = "export_data", part = 0, parts = 1, data = page }))
+out = read(tool .. " encode < /tmp/romance_msg.json")
+re = AR.Protocol.NewReassembler()
+result = nil
+for line in out:gmatch("[^\n]+") do
+    local r = re:Feed(line, 0)
+    if r then result = r end
+end
+check(result and result.data == page, "C++ export page decoded by the addon")
+
 print(("%d passed, %d failed"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

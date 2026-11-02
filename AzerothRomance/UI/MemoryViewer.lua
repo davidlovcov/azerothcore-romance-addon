@@ -157,26 +157,70 @@ local function build()
     -- export / import area
     local ioArea = W.TextArea(f, "Export / import (JSON)", 470, 22, 16000)
     ioArea:SetPoint("BOTTOMLEFT", 12, 4)
+    local ioStatus = W.Label(f, "", 10, W.MUTED)
+    ioStatus:SetPoint("BOTTOMLEFT", ioArea, "TOPLEFT", 160, 4)
+    ioStatus:SetWidth(330)
+    local MAX_SHOWN = 16000   -- the text box holds this many characters; bigger exports are kept in saved variables
+
+    local function companionName()
+        local c = AR:FindChar(MV.guid)
+        return c and c.name or tostring(MV.guid)
+    end
+
     local export = W.Button(f, "Export", 60, 20, function()
-        AR:Request("export", { guid = MV.guid }, function(msg)
-            if msg.op == "export_data" then
-                ioArea:SetValue(msg.data or "")
-                ioArea.edit:HighlightText()
-                ioArea.edit:SetFocus()
-                AR:Print("Export ready: press Ctrl+C to copy.")
-            end
-        end)
+        if not MV.guid then return end
+        ioStatus:SetText("Exporting...")
+        AR.Transfer:Export(MV.guid, function(i, n) ioStatus:SetText(("Exporting part %d/%d..."):format(i, n)) end,
+            function(text, count)
+                if not text then
+                    ioStatus:SetText("|cffff6060Export failed: " .. tostring(count) .. "|r")
+                    return
+                end
+                local name = companionName()
+                AzerothRomanceDB.exports = AzerothRomanceDB.exports or {}
+                AzerothRomanceDB.exports[name] = { at = time(), memories = count, text = text }
+                AzerothRomanceDB.lastExport = name
+                local size = ("%d memories, %.1f KB"):format(count or 0, #text / 1024)
+                if #text <= MAX_SHOWN then
+                    ioArea:SetValue(text)
+                    ioArea.edit:HighlightText()
+                    ioArea.edit:SetFocus()
+                    ioStatus:SetText("Export ready (" .. size .. "): Ctrl+C to copy. Also saved.")
+                else
+                    ioArea:SetValue("")
+                    ioStatus:SetText("Export saved (" .. size .. "), too large for this box.")
+                    AR:Print(("Export of %s saved (%s). It is too large to show; it is written to " ..
+                        "WTF/Account/<account>/SavedVariables/AzerothRomance.lua on /reload or logout. " ..
+                        "\"Import\" with an empty box imports it."):format(name, size))
+                end
+            end)
     end)
     export:SetPoint("BOTTOMRIGHT", -80, 10)
     local import = W.Button(f, "Import", 60, 20, function()
-        local data = ioArea:GetValue()
-        if data == "" then return end
-        AR:Request("import", { guid = MV.guid, data = data }, function(msg)
-            if msg.op == "ack" then
-                AR:Print(msg.ok and ("Imported: " .. table.concat(msg.notes or {}, ", ")) or ("|cffff6060Import failed: " .. AR:AckText(msg) .. "|r"))
-                MV:Load()
+        if not MV.guid then return end
+        local text, source = ioArea:GetValue(), "the text box"
+        if text == "" then
+            local saved = AzerothRomanceDB.exports and AzerothRomanceDB.lastExport and AzerothRomanceDB.exports[AzerothRomanceDB.lastExport]
+            if not saved then
+                ioStatus:SetText("Paste an export into the box first.")
+                return
             end
-        end)
+            text, source = saved.text, "the saved export of " .. AzerothRomanceDB.lastExport
+        elseif #text >= MAX_SHOWN then
+            ioStatus:SetText("|cffff6060The box is full, so the pasted text was probably cut off. Use a saved export instead.|r")
+            return
+        end
+        ioStatus:SetText("Importing from " .. source .. "...")
+        AR.Transfer:Import(MV.guid, text, function(i, n) ioStatus:SetText(("Importing part %d/%d..."):format(i, n)) end,
+            function(ok, result)
+                if ok then
+                    ioStatus:SetText("|cff60ff60Imported:|r " .. table.concat(result or {}, ", "))
+                    MV.offset = 0
+                    MV:Load()
+                else
+                    ioStatus:SetText("|cffff6060Import failed, nothing was changed: " .. tostring(result) .. "|r")
+                end
+            end)
     end)
     import:SetPoint("LEFT", export, "RIGHT", 6, 0)
 

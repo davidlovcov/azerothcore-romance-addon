@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- Export / import of many memories: transfers now run in pages with progress, a timeout and a clear error; an import changes nothing unless every part arrived. Exports too large for the text box are saved in the addon's saved variables, and "Import" with an empty box imports the last saved export.
+
 ### Added
 - Character tab: "Available nearby" lists quests the companion could pick up around you (giver, distance, direction, class quests marked).
 

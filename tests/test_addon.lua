@@ -26,7 +26,7 @@ for _, f in ipairs(files) do
     assert(chunk, err)
     chunk("AzerothRomance", {})
 end
-check(#files == 15, "toc lists 15 files")
+check(#files == 16, "toc lists 16 files")
 local AR = AzerothRomance
 local Protocol = AR.Protocol
 
@@ -210,6 +210,54 @@ local away = AR:CharStatus({ status = "available", estrangedUntil = time() + 5 *
 check(away.label:find("Left you") and not away.enabled, "estranged companion cannot be called")
 check(AR:CharStatus({ status = "in_party", estranged = true }).label:find("estranged") ~= nil, "cold companion is marked")
 check(AR:CharStatus({ status = "in_party" }).label == "In your party", "normal status unchanged")
+
+-- 5e. paged export / import ----------------------------------------------------------
+do
+    local T = AR.Transfer
+    local result
+    T:Export(2, nil, function(text, count) result = { text = text, count = count } end)
+    local r = findOp(drainRequests(), "export")
+    check(r and r.part == 0, "export asks for part 0")
+    local function page(i, n, mems) return AR.Json.Encode({ format = "mod-romance-export", page = i, pages = n, companion = "Elara",
+        personality = i == 0 and { name = "Elara" } or nil, memories = AR.Json.Array(mems) }) end
+    serverSend({ op = "export_data", req = r.req, guid = 2, part = 0, parts = 2, data = page(0, 2, { { text = "a" } }) })
+    r = findOp(drainRequests(), "export")
+    check(r and r.part == 1, "export asks for the next part")
+    serverSend({ op = "export_data", req = r.req, guid = 2, part = 1, parts = 2, data = page(1, 2, { { text = "b" }, { text = "c" } }) })
+    check(result and result.count == 3, "export pages joined")
+    local full = result and AR.Json.Decode(result.text)
+    check(full and full.personality.name == "Elara" and full.memories[3].text == "c" and full.page == nil, "joined export is one clean document")
+
+    -- import: begin, every part acknowledged, end
+    local done
+    T:Import(2, result.text, nil, function(ok, notes) done = { ok = ok, notes = notes } end)
+    local begin = findOp(drainRequests(), "import_begin")
+    check(begin and begin.parts >= 1, "import begins with the part count")
+    serverSend({ op = "ack", ["for"] = "import_begin", req = begin.req, ok = true })
+    for i = 1, begin.parts do
+        local part = findOp(drainRequests(), "import_part")
+        check(part and part.index == i - 1, "import part " .. i .. " sent in order")
+        serverSend({ op = "ack", ["for"] = "import_part", req = part.req, ok = true })
+    end
+    local fin = findOp(drainRequests(), "import_end")
+    check(fin ~= nil, "import ends")
+    serverSend({ op = "ack", ["for"] = "import_end", req = fin.req, ok = true, notes = { "3 of 3 memories imported" } })
+    check(done and done.ok and done.notes[1]:find("3 of 3"), "import reports the server's result")
+
+    -- a refused part aborts; a silent server times out
+    T:Import(2, result.text, nil, function(ok, err) done = { ok = ok, err = err } end)
+    begin = findOp(drainRequests(), "import_begin")
+    serverSend({ op = "ack", ["for"] = "import_begin", req = begin.req, ok = false, code = "import_too_large", message = "That import is too large." })
+    check(done and not done.ok and done.err:find("too large"), "refused import reports the reason")
+    T:Export(2, nil, function(text, err) done = { text = text, err = err } end)
+    drainRequests()
+    stub.Advance(T.TIMEOUT + 1)
+    stub.Update(0.1)
+    check(done and done.text == nil and tostring(done.err):find("did not answer"), "silent server: export times out")
+    check(not T:Busy(), "a failed transfer frees the slot")
+    T:Import(2, "{\"format\":\"mod-romance-export\",\"memories\":[", nil, function(ok, err) done = { ok = ok, err = err } end)
+    check(done and not done.ok and done.err:find("cut off"), "truncated paste is rejected before sending")
+end
 
 -- 6. chat: send + typing + reply -----------------------------------------------------
 AR.UI:ShowTab("chat")
