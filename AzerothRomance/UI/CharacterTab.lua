@@ -51,6 +51,114 @@ local function makeList(parent, title, w, h)
     return box
 end
 
+-- ---------------------------------------------------------------- quest order dialog
+-- Her quests in the order she does them on "lead the way": move them up or down, or lead to one right now.
+
+local MAX_ROWS = 25
+local order = { guid = nil, quests = {} }   -- quests: { id, title, level, complete }
+AR.QuestOrder = order
+
+local function sendOrder()
+    local ids = {}
+    for _, q in ipairs(order.quests) do ids[#ids + 1] = q.id end
+    AR:Request("set_quest_order", { guid = order.guid, quests = ids }, function()
+        AR:Request("get_character_sheet", { guid = order.guid })
+    end)
+end
+
+local function buildOrderDialog()
+    local d = W.Panel(UIParent, 420, 96 + MAX_ROWS * 20, 0.98)
+    _G.AzerothRomanceQuestOrderFrame = d
+    d:SetFrameStrata("DIALOG")
+    d:SetPoint("CENTER", 0, 0)
+    d:EnableMouse(true)
+    d:SetMovable(true)
+    d:RegisterForDrag("LeftButton")
+    d:SetScript("OnDragStart", d.StartMoving)
+    d:SetScript("OnDragStop", d.StopMovingOrSizing)
+    d:SetClampedToScreen(true)
+    tinsert(UISpecialFrames, "AzerothRomanceQuestOrderFrame")
+    d.title = W.Label(d, "", 14, W.GOLD, "GameFontNormalLarge")
+    d.title:SetPoint("TOPLEFT", 14, -12)
+    local close = CreateFrame("Button", nil, d, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", -4, -4)
+    local help = W.Label(d, "\"Lead the way\" takes the first quest that someone still needs. Lead goes there now.", 10, W.MUTED)
+    help:SetPoint("TOPLEFT", 14, -34)
+    help:SetWidth(390)
+    d.rows = {}
+    for i = 1, MAX_ROWS do
+        local y = -54 - (i - 1) * 20
+        local text = W.Label(d, "", 11, W.TEXT)
+        text:SetPoint("TOPLEFT", 14, y - 3)
+        text:SetWidth(250)
+        local up = W.Button(d, "Up", 34, 18)
+        up:SetPoint("TOPLEFT", 270, y)
+        local down = W.Button(d, "Down", 44, 18)
+        down:SetPoint("TOPLEFT", 306, y)
+        local lead = W.Button(d, "Lead", 46, 18)
+        lead:SetPoint("TOPLEFT", 352, y)
+        d.rows[i] = { text = text, up = up, down = down, lead = lead }
+    end
+    d.reset = W.Button(d, "Reset order", 100, 22, function()
+        order.quests = {}
+        AR:Request("set_quest_order", { guid = order.guid, quests = {} }, function()
+            AR:Request("get_character_sheet", { guid = order.guid })
+        end)
+        d:Hide()
+    end)
+    d.reset:SetPoint("BOTTOMLEFT", 12, 10)
+    W.Tooltip(d.reset, "Reset order", "Back to her own choice: shared quests first, then those she can fight for.")
+    d:Hide()
+    return d
+end
+
+function order:Render()
+    local d = self.dialog
+    if not d then return end
+    local c = AR:FindChar(self.guid)
+    d.title:SetText("Quest order" .. (c and (" - " .. c.name) or ""))
+    for i, row in ipairs(d.rows) do
+        local q = self.quests[i]
+        if q then
+            row.text:SetText(("%d. |cffffd100[%d]|r %s%s"):format(i, q.level or 0, q.title or "?", q.complete and " |cff60ff60(done)|r" or ""))
+            local function move(delta)
+                local j = i + delta
+                if j < 1 or j > #self.quests then return end
+                self.quests[i], self.quests[j] = self.quests[j], self.quests[i]
+                sendOrder()
+                self:Render()
+            end
+            row.up:SetScript("OnClick", function() move(-1) end)
+            row.down:SetScript("OnClick", function() move(1) end)
+            row.lead:SetScript("OnClick", function()
+                table.insert(self.quests, 1, table.remove(self.quests, i))
+                sendOrder()
+                self:Render()
+                AR.state.typing[self.guid] = true
+                AR:Request("chat", { guid = self.guid, text = "lead me to " .. (q.title or "") })
+            end)
+            for _, w in ipairs({ row.text, row.up, row.down, row.lead }) do w:Show() end
+            if i == 1 then row.up:Disable() else row.up:Enable() end
+            if i == #self.quests then row.down:Disable() else row.down:Enable() end
+        else
+            for _, w in ipairs({ row.text, row.up, row.down, row.lead }) do w:Hide() end
+        end
+    end
+end
+
+function order:Open(guid)
+    local sheet = guid and AR.state.sheets[guid]
+    if not sheet then return end
+    self.guid = guid
+    self.quests = {}
+    for _, q in ipairs(sheet.quests or {}) do
+        if q.id then self.quests[#self.quests + 1] = { id = q.id, title = q.title, level = q.level, complete = q.complete } end
+    end
+    self.dialog = self.dialog or buildOrderDialog()
+    self:Render()
+    self.dialog:Show()
+end
+
 local function build(f)
     local name = W.Label(f, "", 16, W.GOLD, "GameFontNormalLarge")
     name:SetPoint("TOPLEFT", 2, -2)
@@ -80,6 +188,12 @@ local function build(f)
     status:SetPoint("BOTTOMLEFT", 2, 10)
     local refresh = W.Button(f, "Refresh", 90, 22)
     refresh:SetPoint("BOTTOMRIGHT", -4, 6)
+    local orderButton = W.Button(f, "Quest order", 100, 22, function()
+        if AR.state.selected and AR.state.sheets[AR.state.selected] then AR.QuestOrder:Open(AR.state.selected) end
+    end)
+    orderButton:SetPoint("BOTTOMRIGHT", -208, 6)
+    W.Tooltip(orderButton, "Quest order", "Which of her quests she leads you to first on \"lead the way\", or lead to one right now.")
+    f.orderButton = orderButton
     -- same as typing "share your quests" in the chat: she shares every quest you don't have yet
     local share = W.Button(f, "Share quests", 100, 22, function()
         local g = AR.state.selected

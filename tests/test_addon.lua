@@ -502,6 +502,33 @@ do
     AR.state.selected = nil
 end
 
+-- 10d. quest order dialog and "wait for me to loot" ---------------------------------------
+do
+    AR.state.selected = 2
+    serverSend({ op = "character_sheet", guid = 2, name = "Elara", level = 5, quests = {
+        { id = 101, title = "Reclaiming Sunstrider Isle", level = 2 },
+        { id = 102, title = "Unfortunate Measures", level = 3 },
+        { id = 103, title = "Windows to the Source", level = 4, complete = true } } })
+    drainRequests()
+    local O = AR.QuestOrder
+    O:Open(2)
+    check(AzerothRomanceQuestOrderFrame:IsShown() and #O.quests == 3, "quest order dialog lists her quests")
+    O.dialog.rows[1].down:Click()
+    local r = findOp(drainRequests(), "set_quest_order")
+    check(r and r.guid == 2 and r.quests[1] == 102 and r.quests[2] == 101 and r.quests[3] == 103, "Down moves a quest one place")
+    check(not O.dialog.rows[1].up:IsEnabled() and not O.dialog.rows[3].down:IsEnabled(), "no Up on the first, no Down on the last")
+    O.dialog.rows[3].lead:Click()
+    local reqs = drainRequests()
+    r = findOp(reqs, "set_quest_order")
+    local chat = findOp(reqs, "chat")
+    check(r and r.quests[1] == 103, "Lead puts the quest first")
+    check(chat and chat.text == "lead me to Windows to the Source", "Lead tells her to lead there now")
+    O.dialog.reset:Click()
+    r = findOp(drainRequests(), "set_quest_order")
+    check(r and #r.quests == 0 and not AzerothRomanceQuestOrderFrame:IsShown(), "Reset order clears it")
+    AR.state.selected = nil
+end
+
 -- 11. no unexpected UI errors -------------------------------------------------------
 local unexpected = {}
 for _, e in ipairs(AR.state.errors) do

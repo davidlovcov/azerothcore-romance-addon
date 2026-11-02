@@ -27,13 +27,16 @@ local function build(f)
     party:SetPoint("TOPLEFT", 10, -172)
     local listen = W.Check(left, "Listen in party chat when addressed by name")
     listen:SetPoint("TOPLEFT", 10, -198)
+    local waitLoot = W.Check(left, "Wait for me to loot",
+        "After a fight she also waits until you have looted (your round-robin turn, your quest items). Off: she loots her own and goes on.")
+    waitLoot:SetPoint("TOPLEFT", 10, -224)
 
     local model = W.Dropdown(left, "Model (server default if empty)", 260, {})
-    model:SetPoint("TOPLEFT", 4, -232)
+    model:SetPoint("TOPLEFT", 4, -254)
     local temp = W.Slider(left, "Creativity (temperature x100, 0 = server default)", 220, 0, 120, 5, "default", "wild")
-    temp:SetPoint("TOPLEFT", 40, -296)
+    temp:SetPoint("TOPLEFT", 40, -316)
     local maxChars = W.Slider(left, "Maximum reply length (characters, 0 = default)", 220, 0, 600, 25, "default", "600")
-    maxChars:SetPoint("TOPLEFT", 40, -346)
+    maxChars:SetPoint("TOPLEFT", 40, -364)
 
     local status = W.Label(left, "", 11, W.MUTED)
     status:SetPoint("BOTTOMLEFT", 12, 14)
@@ -91,6 +94,7 @@ local function build(f)
         commands:SetChecked(s.naturalCommands ~= false)
         party:SetChecked(s.partyChatMode and true or false)
         listen:SetChecked(s.listenInParty ~= false)
+        waitLoot:SetChecked(s.waitForPlayerLoot and true or false)
         local items = { { value = "", text = "Server default" } }
         local m = AR.state.models
         if m and m.choice then
@@ -135,6 +139,7 @@ local function build(f)
             naturalCommands = commands:GetChecked() and true or false,
             partyChatMode = party:GetChecked() and true or false,
             listenInParty = listen:GetChecked() and true or false,
+            waitForPlayerLoot = waitLoot:GetChecked() and true or false,
             model = model:GetValue() or "",
             temperature = t > 0 and (t / 100) or -1,
             maxReplyChars = maxChars:GetValueInt(),
