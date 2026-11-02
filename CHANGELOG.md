@@ -4,6 +4,9 @@
 
 ### Added
 - Quests tab: the quests of the whole group (who has which, who is done) and the quests available around. Change the order with Up / Down and "Apply order" (the leading companion switches right away), "Lead" sends the selected companion there, "Ignore" keeps a quest from ever being picked up or done, "Abandon" (click twice) drops it for every companion. Replaces the Character tab's quest order window. Needs mod-romance 1.1.1.
+- Quests tab: "Share" per group quest (enabled when the quest can be shared and someone lacks it; the tooltip names who) and "Take" per quest around, which shows who can take it (companions, and "you"). Taking an ignored quest unignores it.
+- Commands tab: "Send to" lists every companion who is with you (and party chat), so commands and macros no longer depend on the companion selected on the Companion tab.
+- Two tab rows: general tabs on top, the tabs about the selected companion (Chat, Character, Personality, Relationship, Settings) below, labelled with her name. The window is 22 pixels taller.
 - Settings tab: "Wait for me to loot" (off by default) - after a fight she also waits for your loot.
 - Commands tab: buttons for the common companion commands and your own ones, sent to the selected companion or to all of them in party chat. Macro mode makes a WoW macro from a button (it lands on your cursor for the action bar); "Make macros for all" creates them all.
 - Character tab: "walking behind <name>" when another companion leads.
@@ -11,6 +14,7 @@
 - Settings tab shows the addon and the server module version, and warns when they differ.
 
 ### Fixed
+- Quests tab: the last "Available around here" row overlapped the paging and the Refresh button; long rows are cut instead of wrapping into the next one.
 - The tab row shrinks evenly when the tabs would not fit next to the Debug tab.
 - The export window: the explanation no longer runs out of the window, and an export that is too large to show has no (useless) text box.
 - Import / export no longer show "Too many requests": a step that hits the server's limit is sent again after a moment by itself. The memory list reloads at most every 2 seconds and not during a transfer.

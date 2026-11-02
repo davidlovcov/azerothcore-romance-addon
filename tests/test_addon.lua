@@ -499,7 +499,62 @@ do
     check(stub.cursorMacro and stub.macros[stub.cursorMacro].body == "/w Elara lead me to the mine", "own command macro is on the cursor")
     f.rows[1].del:Click()
     check(#AzerothRomanceDB.commands == 0 and not f.rows[1].send:IsShown(), "own command deleted")
+
+    -- "Send to": every companion who is with you, not only the selected one
+    local savedChars = AR.state.chars
+    AR.state.chars = { { guid = 2, name = "Elara", active = true }, { guid = 3, name = "Lyra", active = true },
+                       { guid = 5, name = "Bob", active = false } }
+    f:Render()
+    local values = {}
+    for _, it in ipairs(f.toDropdown.items) do values[it.value] = it.text end
+    check(values["2"] == "Elara" and values["3"] == "Lyra" and values["party"] and not values["5"],
+        "Send to lists every called companion and party chat, not the others")
+    check(f.toDropdown:GetValue() == "2", "Send to starts with the selected companion")
+    AzerothRomanceDB.commandTarget = "3"
+    drainRequests()
+    lead:Click()
+    r = findOp(drainRequests(), "chat")
+    check(r and r.guid == 3 and r.text == "lead the way", "a command goes to the companion chosen under Send to")
+    local li = AR:MakeMacro("Wait here", "wait")
+    check(li and stub.macros[li].body == "/w Lyra wait", "macros whisper the chosen companion")
+    AR.state.chars[2].active = false   -- Lyra dismissed: back to the selected companion
+    drainRequests()
+    lead:Click()
+    r = findOp(drainRequests(), "chat")
+    check(r and r.guid == 2, "a dismissed companion is no longer the target (the selected one is)")
+    AR.state.selected = 5
+    f:Render()
+    values = {}
+    for _, it in ipairs(f.toDropdown.items) do values[it.value] = it.text end
+    check(values["5"] == "Bob (not called)", "a selected companion who isn't called is still shown as the target")
     AR.state.selected = nil
+    AzerothRomanceDB.commandTarget = nil
+    drainRequests()
+    lead:Click()
+    check(findOp(drainRequests(), "chat") == nil and f.status:GetText():find("Send to"), "no target: nothing sent, and why")
+    AR.state.chars = savedChars
+    AR.state.selected = nil
+end
+
+-- 10c2. two tab rows: general tabs, then the ones about the selected companion ------------------
+do
+    local UI = AR.UI
+    for _, id in ipairs({ "chat", "character", "personality", "relationship", "settings" }) do
+        check(UI.tabs[id].opts.group == "companion", id .. " is a companion tab")
+    end
+    for _, id in ipairs({ "companion", "commands", "quests", "profile" }) do
+        check(UI.tabs[id].opts.group == nil, id .. " is a general tab")
+    end
+    check(UI.tabs.chat.button:GetParent() ~= UI.tabs.commands.button:GetParent(), "companion tabs are on their own row")
+    check(UI.companionBarWidth and UI.companionBarWidth <= 780 - 24, "the companion tabs fit in the window (" .. tostring(UI.companionBarWidth) .. ")")
+    AR.state.selected = 2
+    AR:Fire("SELECTION_CHANGED", 2)
+    check(UI.companionLabel:GetText():find("Elara"), "the companion row names the selected companion")
+    AR.state.selected = nil
+    AR:Fire("SELECTION_CHANGED", nil)
+    check(UI.companionLabel:GetText():find("No companion"), "... or says none is selected")
+    UI:ShowTab("settings")
+    check(UI.tabs.settings.frame:IsShown(), "a companion tab still opens without a selection")
 end
 
 -- 10d. Quests tab: group quests, order + apply, ignore, abandon, lead -----------------------
@@ -551,6 +606,74 @@ do
     f.rows[2].lead:Click()
     local chat = findOp(drainRequests(), "chat")
     check(chat and chat.guid == 2 and chat.text == "lead me to Reclaiming Sunstrider Isle", "Lead asks the selected companion")
+
+    -- layout: the panels, rows, paging and the Refresh button don't overlap
+    local function top(w) return w._points[1][#w._points[1]] end   -- y offset of the TOPLEFT point
+    local topEnd = top(f.topPanel) - f.topPanel:GetHeight()
+    check(top(f.bottomPanel) <= topEnd, "the available panel starts below the group panel")
+    local contentHeight = 562 - 106 - 12
+    check(top(f.bottomPanel) - f.bottomPanel:GetHeight() <= 0 and
+          -(top(f.bottomPanel) - f.bottomPanel:GetHeight()) <= contentHeight - 6 - f.refresh:GetHeight(),
+          "the available panel ends above the Refresh button")
+    local lastAvail = f.arows[#f.arows].take
+    check(-(top(lastAvail)) + lastAvail:GetHeight() <= f.bottomPanel:GetHeight() - 4 - 18, "the last available row ends above the paging")
+    local lastRow = f.rows[#f.rows].abandon
+    check(-(top(lastRow)) + lastRow:GetHeight() <= f.topPanel:GetHeight() - 4 - 18, "the last quest row ends above the paging")
+    check(f.rows[1].abandon._points[1][2] + f.rows[1].abandon:GetWidth() <= 756, "the row buttons fit in the panel")
+
+    -- share: only when it can be shared and someone lacks it
+    AR.state.selected = 2
+    local Q = AR.GroupQuests
+    Q:Load({ levelCap = 4, companions = 2,
+        quests = {
+            { id = 101, title = "Reclaiming Sunstrider Isle", level = 1, sharable = true, missing = {},
+              who = { { name = "Arthas", player = true, done = true }, { name = "Elara", done = true } } },
+            { id = 102, title = "Unfortunate Measures", level = 3, sharable = true, missing = { "you", "Lyra" }, who = { { name = "Elara" } } },
+            { id = 104, title = "Class Call", level = 3, sharable = false, missing = { "Lyra" }, who = { { name = "Elara" } } } },
+        available = {
+            { id = 201, title = "Thirst Unending", level = 3, giver = "Arcanist Helion", distance = 40, direction = "north",
+              takers = { "Elara", "Lyra" }, you = true },
+            { id = 202, title = "Aggression", level = 9, giver = "Lanthan Perilon", distance = 12, direction = "east",
+              takers = {}, you = true, tooHigh = true },
+            { id = 203, title = "Nobody's", level = 2, giver = "Someone", distance = 5, direction = "west", takers = {}, you = false } } })
+    Q.page, Q.availPage = 1, 1
+    f:Render()
+    local function row(title)
+        for i = 1, #f.rows do if (f.rows[i].text:GetText() or ""):find(title) then return f.rows[i] end end
+    end
+    local function arow(title)
+        for i = 1, #f.arows do if (f.arows[i].text:GetText() or ""):find(title) then return f.arows[i] end end
+    end
+    check(row("Unfortunate") and row("Unfortunate").share:IsEnabled(), "Share is on when someone lacks a sharable quest")
+    check(row("Reclaiming") and not row("Reclaiming").share:IsEnabled(), "Share is off when everyone has it")
+    check(row("Class Call") and not row("Class Call").share:IsEnabled(), "Share is off for a quest that can't be shared")
+    drainRequests()
+    row("Unfortunate").share:Click()
+    r = findOp(drainRequests(), "share_quest")
+    check(r and r.quest == 102, "Share sends the quest")
+    serverSend({ op = "ack", req = r.req, result = "Lyra took it; you got it shared." })
+    check(f.status:GetText():find("Lyra took it"), "the result of Share is shown")
+
+    -- take: who can take it, and the companions take it
+    check(arow("Thirst") and arow("Thirst").text:GetText():find("Elara, Lyra, you"), "who can take an available quest is shown")
+    check(arow("Nobody") and arow("Nobody").text:GetText():find("nobody can take it"), "... or that nobody can")
+    check(arow("Thirst").take:IsEnabled() and not arow("Aggression").take:IsEnabled() and not arow("Nobody").take:IsEnabled(),
+        "Take is only on when a companion can take it")
+    Q:ToggleIgnore(201, "Thirst Unending")
+    drainRequests()
+    f:Render()
+    arow("Thirst").take:Click()
+    local reqs = drainRequests()
+    local ig, tk = findOp(reqs, "set_ignored_quests"), findOp(reqs, "take_quest")
+    check(tk and tk.quest == 201 and tk.guid == 2, "Take sends the quest and the selected companion")
+    check(ig and #ig.quests == 0 and Q:Ignored()[201] == nil, "taking an ignored quest unignores it")
+    serverSend({ op = "ack", req = tk.req, result = "Elara leads you to Arcanist Helion to take \"Thirst Unending\"." })
+    check(f.status:GetText():find("leads you to Arcanist Helion"), "the result of Take is shown")
+    -- an older server sends no takers / sharable: say so instead of "nobody can take it"
+    Q:Load({ levelCap = 4, companions = 1, quests = { { id = 102, title = "Unfortunate Measures", level = 3, who = { { name = "Elara" } } } },
+        available = { { id = 201, title = "Thirst Unending", level = 3, giver = "Arcanist Helion", distance = 40, direction = "north" } } })
+    f:Render()
+    check(arow("Thirst").text:GetText():find("server too old") and not arow("Thirst").take:IsEnabled(), "old server: Take explains why it is off")
     AR.state.selected = nil
 end
 

@@ -8,7 +8,8 @@ local W = AR.W
 local UI = { tabs = {}, order = {} }
 AR.UI = UI
 
-local WIDTH, HEIGHT = 780, 540
+local WIDTH, HEIGHT = 780, 562
+local CONTENT_TOP = -106   -- below the two tab rows
 
 -- 3.3.5 has no Region:SetShown()
 local function setShown(region, shown) if shown then region:Show() else region:Hide() end end
@@ -134,7 +135,7 @@ function UI:Build()
     self.lightText = W.Label(f, "", 10, W.MUTED)
     self.lightText:SetPoint("RIGHT", light, "LEFT", -6, 0)
 
-    -- tab bar
+    -- tab bars: the general tabs on top, below them the tabs about the selected companion
     local bar = CreateFrame("Frame", nil, f)
     bar:SetPoint("TOPLEFT", 10, -52)
     bar:SetPoint("TOPRIGHT", -10, -52)
@@ -144,33 +145,55 @@ function UI:Build()
     sep:SetPoint("BOTTOMLEFT")
     sep:SetPoint("BOTTOMRIGHT")
     sep:SetTexture(1, 0.82, 0.25, 0.35)
-    local normal, smallWidth = {}, 0
+    local bar2 = CreateFrame("Frame", nil, f)
+    bar2:SetPoint("TOPLEFT", 10, -80)
+    bar2:SetPoint("TOPRIGHT", -10, -80)
+    bar2:SetHeight(24)
+    local sep2 = bar2:CreateTexture(nil, "ARTWORK")
+    sep2:SetHeight(1)
+    sep2:SetPoint("BOTTOMLEFT")
+    sep2:SetPoint("BOTTOMRIGHT")
+    sep2:SetTexture(1, 0.82, 0.25, 0.2)
+    local who = W.Label(bar2, "", 11, W.MUTED)
+    who:SetPoint("LEFT", bar2, "LEFT", 4, 0)
+    who:SetWidth(150)
+    who:SetJustifyH("LEFT")
+    self.companionLabel = who
+    local COMPANION_X = 158   -- where the companion tabs start (after the label)
+
+    local normal, personal, smallWidth = {}, {}, 0
     for _, id in ipairs(self.order) do
         local tab = self.tabs[id]
-        local b = makeTabButton(bar, tab, 0, tab.opts.small)
+        local isPersonal = tab.opts.group == "companion"
+        local b = makeTabButton(isPersonal and bar2 or bar, tab, 0, tab.opts.small)
         if tab.opts.small then
             b:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, 2)
             smallWidth = smallWidth + b:GetWidth() + 6
+        elseif isPersonal then
+            personal[#personal + 1] = b
         else
             normal[#normal + 1] = b
         end
         tab.button = b
     end
-    -- the tabs must not run into the small ones on the right: narrow them evenly if needed
-    local total = 0
-    for _, b in ipairs(normal) do total = total + b:GetWidth() + 2 end
-    local room = WIDTH - 24 - smallWidth
-    local shrink = total > room and math.ceil((total - room) / #normal) or 0
-    local x = 0
-    for _, b in ipairs(normal) do
-        if shrink > 0 then b:SetWidth(math.max(50, b:GetWidth() - shrink)) end
-        b:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", x, 0)
-        x = x + b:GetWidth() + 2
+    -- the tabs must not run into the small ones (or out of the window): narrow them evenly if needed
+    local function lay(buttons, row, x0, room)
+        local total = 0
+        for _, b in ipairs(buttons) do total = total + b:GetWidth() + 2 end
+        local shrink = total > room and math.ceil((total - room) / #buttons) or 0
+        local x = x0
+        for _, b in ipairs(buttons) do
+            if shrink > 0 then b:SetWidth(math.max(50, b:GetWidth() - shrink)) end
+            b:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", x, 0)
+            x = x + b:GetWidth() + 2
+        end
+        return x
     end
-    UI.tabBarWidth = x + smallWidth
+    UI.tabBarWidth = lay(normal, bar, 0, WIDTH - 24 - smallWidth) + smallWidth
+    UI.companionBarWidth = lay(personal, bar2, COMPANION_X, WIDTH - 24 - COMPANION_X)
 
     local content = CreateFrame("Frame", nil, f)
-    content:SetPoint("TOPLEFT", 12, -84)
+    content:SetPoint("TOPLEFT", 12, CONTENT_TOP)
     content:SetPoint("BOTTOMRIGHT", -12, 12)
     self.content = content
 
@@ -185,6 +208,20 @@ function UI:Build()
 
     AR:On("STATUS_CHANGED", function() UI:RefreshStatus() end)
     AR:On("HELLO", function() UI:RefreshStatus() end)
+    AR:On("SELECTION_CHANGED", function() UI:RefreshCompanionLabel() end)
+    AR:On("CHARS_CHANGED", function() UI:RefreshCompanionLabel() end)
+    self:RefreshCompanionLabel()
+end
+
+-- the second tab row is about the companion selected on the Companion tab
+function UI:RefreshCompanionLabel()
+    if not self.companionLabel then return end
+    local c = AR.state.selected and AR:FindChar(AR.state.selected)
+    if c and c.name then
+        self.companionLabel:SetText(("|cffffd100%s|r:"):format(c.name))
+    else
+        self.companionLabel:SetText("No companion selected:")
+    end
 end
 
 function UI:RefreshStatus()

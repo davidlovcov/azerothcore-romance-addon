@@ -189,4 +189,4 @@ local function build(f)
     end
 end
 
-UI:RegisterTab("relationship", "Relationship", build)
+UI:RegisterTab("relationship", "Relationship", build, { group = "companion" })

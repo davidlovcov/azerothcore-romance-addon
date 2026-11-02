@@ -6,14 +6,17 @@
     "Apply order" (she switches right away if she is leading). "Reset order" lets her choose again.
   - Lead: the selected companion leads there now (a finished quest: to turn it in).
   - Ignore: never picked up and never led to. Kept per character in the addon and sent to the server.
+  - Share: every companion who lacks the quest (and can take it) gets it; you get it shared by one who has it.
   - Abandon: drops the quest for every companion (not for you). Click twice to confirm.
+  - Available around here: who could take each quest; "Take" makes them take it (walking there with the
+    leading or selected companion if the quest giver is not close).
 ]]
 
 local AR = _G.AzerothRomance
 local W = AR.W
 local UI = AR.UI
 
-local QUEST_ROWS, AVAIL_ROWS = 11, 4
+local QUEST_ROWS, AVAIL_ROWS = 8, 4
 local REFRESH_SECONDS = 10
 
 local Q = { quests = {}, available = {}, changed = false, page = 1, availPage = 1, levelCap = 0, companions = 0 }
@@ -82,6 +85,45 @@ function Q:ResetOrder()
     AR:Request("set_group_quest_order", { quests = {}, apply = false }, function() Q:Request() end)
 end
 
+local function names(list)
+    local out = {}
+    for _, n in ipairs(list or {}) do out[#out + 1] = tostring(n) end
+    return out
+end
+Q.Names = names
+
+-- a server module older than this addon sends no share/take data: say so instead of "nobody can take it"
+local OLD_SERVER = "Your server module is older than this addon: rebuild the server module from the same version."
+function Q:ServerTooOld(row) return row.takers == nil and row.sharable == nil end
+
+-- Share is useful when the quest can be shared and someone in the group still lacks it
+function Q:CanShare(q)
+    return q.sharable and #names(q.missing) > 0 or false
+end
+
+-- the companions who can take an available quest, plus "you" if you can too
+function Q:Takers(a)
+    local list = names(a.takers)
+    if a.you then list[#list + 1] = "you" end
+    return list
+end
+
+-- Take: the companions take it (an ignored quest is unignored: you chose it)
+function Q:Take(a, done)
+    if self:Ignored()[a.id] then self:ToggleIgnore(a.id, a.title) end
+    AR:Request("take_quest", { quest = a.id, guid = AR.state.selected }, function(msg)
+        if done then done(msg.result or "") end
+        Q:Request()
+    end)
+end
+
+function Q:Share(q, done)
+    AR:Request("share_quest", { quest = q.id }, function(msg)
+        if done then done(msg.result or "") end
+        Q:Request()
+    end)
+end
+
 local function whoText(q)
     local parts = {}
     for _, w in ipairs(q.who or {}) do
@@ -97,13 +139,15 @@ local function build(f)
     Q.frame = f
     local status = W.Label(f, "", 11, W.MUTED)
     status:SetPoint("BOTTOMLEFT", 2, 10)
-    status:SetWidth(430)
+    status:SetWidth(640)
+    status:SetHeight(14)
     local function say(text, bad) status:SetText(bad and ("|cffff6060" .. text .. "|r") or text) end
-    f.say = say
+    f.say, f.status = say, status
 
     -- the group's quests
-    local top = W.Panel(f, 756, 290, 0.35)
+    local top = W.Panel(f, 756, 250, 0.35)
     top:SetPoint("TOPLEFT", 0, 0)
+    f.topPanel = top
     local h1 = W.Heading(top, "Group quests")
     h1:SetPoint("TOPLEFT", 8, -6)
     local cap = W.Label(top, "", 10, W.MUTED)
@@ -126,18 +170,21 @@ local function build(f)
         local y = -30 - (i - 1) * 23
         local r = {}
         r.text = W.Label(top, "", 11, W.TEXT)
-        r.text:SetPoint("TOPLEFT", 10, y - 2)
-        r.text:SetWidth(470)
+        r.text:SetPoint("TOPLEFT", 10, y - 3)
+        r.text:SetWidth(400)
+        r.text:SetHeight(14)   -- one line: a long one is cut, not wrapped into the next row
         r.up = W.Button(top, "Up", 30, 20)
-        r.up:SetPoint("TOPLEFT", 486, y)
+        r.up:SetPoint("TOPLEFT", 416, y)
         r.down = W.Button(top, "Down", 42, 20)
-        r.down:SetPoint("TOPLEFT", 518, y)
+        r.down:SetPoint("TOPLEFT", 448, y)
         r.lead = W.Button(top, "Lead", 42, 20)
-        r.lead:SetPoint("TOPLEFT", 562, y)
-        r.ignore = W.Button(top, "Ignore", 54, 20)
-        r.ignore:SetPoint("TOPLEFT", 606, y)
-        r.abandon = W.Button(top, "Abandon", 84, 20)
-        r.abandon:SetPoint("TOPLEFT", 662, y)
+        r.lead:SetPoint("TOPLEFT", 492, y)
+        r.share = W.Button(top, "Share", 48, 20)
+        r.share:SetPoint("TOPLEFT", 536, y)
+        r.ignore = W.Button(top, "Ignore", 58, 20)
+        r.ignore:SetPoint("TOPLEFT", 586, y)
+        r.abandon = W.Button(top, "Abandon", 64, 20)
+        r.abandon:SetPoint("TOPLEFT", 646, y)
         f.rows[i] = r
     end
     f.prev = W.Button(top, "<", 26, 18, function() Q.page = math.max(1, Q.page - 1) f:Render() end)
@@ -148,19 +195,23 @@ local function build(f)
     f.next:SetPoint("BOTTOMRIGHT", -6, 4)
 
     -- available around
-    local bottom = W.Panel(f, 756, 128, 0.35)
-    bottom:SetPoint("TOPLEFT", 0, -296)
+    local bottom = W.Panel(f, 756, 152, 0.35)
+    bottom:SetPoint("TOPLEFT", 0, -256)
+    f.bottomPanel = bottom
     local h2 = W.Heading(bottom, "Available around here")
     h2:SetPoint("TOPLEFT", 8, -6)
     f.arows = {}
     for i = 1, AVAIL_ROWS do
-        local y = -28 - (i - 1) * 22
+        local y = -28 - (i - 1) * 24
         local r = {}
         r.text = W.Label(bottom, "", 11, W.TEXT)
-        r.text:SetPoint("TOPLEFT", 10, y - 2)
-        r.text:SetWidth(600)
-        r.ignore = W.Button(bottom, "Ignore", 84, 20)
-        r.ignore:SetPoint("TOPLEFT", 662, y)
+        r.text:SetPoint("TOPLEFT", 10, y - 3)
+        r.text:SetWidth(570)
+        r.text:SetHeight(14)
+        r.take = W.Button(bottom, "Take", 54, 20)
+        r.take:SetPoint("TOPLEFT", 586, y)
+        r.ignore = W.Button(bottom, "Ignore", 64, 20)
+        r.ignore:SetPoint("TOPLEFT", 646, y)
         f.arows[i] = r
     end
     f.aprev = W.Button(bottom, "<", 26, 18, function() Q.availPage = math.max(1, Q.availPage - 1) f:Render() end)
@@ -172,6 +223,7 @@ local function build(f)
 
     local refresh = W.Button(f, "Refresh", 90, 22, function() Q:Request() end)
     refresh:SetPoint("BOTTOMRIGHT", -4, 6)
+    f.refresh = refresh
 
     local armed = {}   -- quest id -> GetTime() of the first Abandon click
 
@@ -186,7 +238,7 @@ local function build(f)
         for i, r in ipairs(self.rows) do
             local n = (Q.page - 1) * QUEST_ROWS + i
             local q = Q.quests[n]
-            local widgets = { r.text, r.up, r.down, r.lead, r.ignore, r.abandon }
+            local widgets = { r.text, r.up, r.down, r.lead, r.share, r.ignore, r.abandon }
             if not q then
                 for _, w in ipairs(widgets) do w:Hide() end
             else
@@ -204,6 +256,15 @@ local function build(f)
                     AR.state.typing[g] = true
                     AR:Request("chat", { guid = g, text = "lead me to " .. (q.title or "") })
                     say("Asked her to lead to \"" .. (q.title or "") .. "\".")
+                end)
+                local missing = names(q.missing)
+                if Q:CanShare(q) then r.share:Enable() else r.share:Disable() end
+                W.Tooltip(r.share, "Share", Q:ServerTooOld(q) and OLD_SERVER or not q.sharable and "This quest can't be shared." or
+                    (#missing == 0 and "Everyone in the group has it." or
+                     ("Still without it: %s. Companions who can take it get it; you get it shared."):format(table.concat(missing, ", "))))
+                r.share:SetScript("OnClick", function()
+                    say("Sharing \"" .. (q.title or "") .. "\"...")
+                    Q:Share(q, function(result) say(result ~= "" and result or "Shared.") end)
                 end)
                 r.ignore:SetText(isIgnored and "Unignore" or "Ignore")
                 r.ignore:SetScript("OnClick", function()
@@ -237,14 +298,29 @@ local function build(f)
             local a = Q.available[(Q.availPage - 1) * AVAIL_ROWS + i]
             if not a then
                 r.text:Hide()
+                r.take:Hide()
                 r.ignore:Hide()
             else
                 r.text:Show()
+                r.take:Show()
                 r.ignore:Show()
                 local isIgnored = ignored[a.id] ~= nil
-                r.text:SetText(("|cffffd100[%d]|r %s%s%s%s  |cffaaaaaa%s, %d yd %s|r"):format(a.level or 0, isIgnored and "|cff888888" or "",
+                local takers = Q:Takers(a)
+                r.text:SetText(("|cffffd100[%d]|r %s%s%s%s  |cffaaaaaa%s, %d yd %s|r  %s"):format(a.level or 0, isIgnored and "|cff888888" or "",
                     a.title or "?", a.classQuest and " |cff9ad2ff(class)|r" or "", a.tooHigh and " |cffff8040(too high)|r" or "",
-                    a.giver or "?", a.distance or 0, a.direction or ""))
+                    a.giver or "?", a.distance or 0, a.direction or "",
+                    Q:ServerTooOld(a) and "|cffff8040server too old for Take|r" or
+                    #takers > 0 and ("|cff60ff60" .. table.concat(takers, ", ") .. "|r") or "|cff888888nobody can take it|r"))
+                local companionsCan = #names(a.takers) > 0
+                if companionsCan then r.take:Enable() else r.take:Disable() end
+                W.Tooltip(r.take, "Take", Q:ServerTooOld(a) and OLD_SERVER or companionsCan
+                    and ("%s take it%s. If the quest giver is not close, the leading (or selected) companion leads you all there.")
+                        :format(table.concat(names(a.takers), ", "), a.you and "; you get it shared" or "")
+                    or (a.you and "None of your companions can take it; you can take it yourself." or "None of your companions can take it."))
+                r.take:SetScript("OnClick", function()
+                    say("Taking \"" .. (a.title or "") .. "\"...")
+                    Q:Take(a, function(result) say(result ~= "" and result or "Done.") end)
+                end)
                 r.ignore:SetText(isIgnored and "Unignore" or "Ignore")
                 r.ignore:SetScript("OnClick", function()
                     Q:ToggleIgnore(a.id, a.title)

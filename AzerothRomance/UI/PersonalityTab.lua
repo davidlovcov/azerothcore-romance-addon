@@ -370,4 +370,4 @@ local function build(f)
     f.OnShowTab = function() f:Load() end
 end
 
-UI:RegisterTab("personality", "Personality", build)
+UI:RegisterTab("personality", "Personality", build, { group = "companion" })

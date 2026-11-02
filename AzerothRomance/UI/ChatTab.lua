@@ -136,4 +136,4 @@ local function build(f)
     end
 end
 
-UI:RegisterTab("chat", "Chat", build)
+UI:RegisterTab("chat", "Chat", build, { group = "companion" })

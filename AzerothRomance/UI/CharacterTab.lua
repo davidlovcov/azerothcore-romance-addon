@@ -197,4 +197,4 @@ local function build(f)
     end
 end
 
-UI:RegisterTab("character", "Character", build)
+UI:RegisterTab("character", "Character", build, { group = "companion" })

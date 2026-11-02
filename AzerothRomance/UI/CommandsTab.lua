@@ -2,8 +2,8 @@
   AzerothRomance - Commands tab: one-click buttons for the common companion commands, your own
   commands, and WoW macros made from any of them (to put on an action bar).
 
-  A button sends its text exactly as if you had typed it: to the selected companion (like the Chat
-  tab) or in party chat to all companions. A macro does the same with /w <name> or /p, so it also
+  A button sends its text exactly as if you had typed it: to the companion chosen under "Send to" (any
+  companion who is with you; by default the one selected on the Companion tab) or in party chat to all. A macro does the same with /w <name> or /p, so it also
   works with this window closed.
 ]]
 
@@ -38,8 +38,26 @@ local function custom()
     return AzerothRomanceDB.commands
 end
 
+-- "party", or the guid of the companion the commands go to (default: the one selected on the Companion tab)
 local function target()
-    return AzerothRomanceDB.commandTarget == "party" and "party" or "selected"
+    local t = AzerothRomanceDB.commandTarget
+    if t == "party" then return "party" end
+    local g = tonumber(t)
+    if g then
+        local c = AR:FindChar(g)
+        if c and c.active then return g end
+    end
+    return AR.state.selected
+end
+AR.CommandTarget = target
+
+-- the companions that are with you right now (called, AI on)
+local function activeCompanions()
+    local out = {}
+    for _, c in ipairs(AR.state.chars or {}) do
+        if c.active then out[#out + 1] = c end
+    end
+    return out
 end
 
 local function inParty()
@@ -57,8 +75,8 @@ function AR:SendCommand(text)
         SendChatMessage(text, "PARTY")
         return true
     end
-    local g = AR.state.selected
-    if not g then return false, "Select a companion on the Companion tab first." end
+    local g = target()
+    if not g then return false, "Choose a companion under \"Send to\" (or call one on the Companion tab)." end
     AR.state.typing[g] = true
     AR:Fire("TYPING_CHANGED", g)
     AR:Request("chat", { guid = g, text = text })
@@ -70,8 +88,9 @@ local function macroFor(label, text)
     if target() == "party" then
         return ("Party " .. label):sub(1, 16), "/p " .. text
     end
-    local c = AR.state.selected and AR:FindChar(AR.state.selected)
-    if not c or not c.name then return nil, "Select a companion on the Companion tab first." end
+    local g = target()
+    local c = g and AR:FindChar(g)
+    if not c or not c.name then return nil, "Choose a companion under \"Send to\" first." end
     return (c.name:sub(1, 6) .. " " .. label):sub(1, 16), "/w " .. c.name .. " " .. text
 end
 
@@ -105,6 +124,7 @@ local function build(f)
         f:Render()
     end)
     to:SetPoint("TOPLEFT", 0, -2)
+    f.toDropdown, f.status = to, status
     local macroMode = W.Check(f, "Macro mode",
         "On: clicking a command creates a WoW macro for it and puts it on your cursor, to drop on an action bar. " ..
         "Off: clicking sends the command.")
@@ -198,12 +218,17 @@ local function build(f)
         "Existing ones with the same name are updated. Character macros first, then account macros.")
 
     function f:Render()
-        local c = AR.state.selected and AR:FindChar(AR.state.selected)
-        to:SetItems({
-            { value = "selected", text = c and ("Selected companion: " .. c.name) or "Selected companion (none yet)" },
-            { value = "party", text = "All companions (party chat)" },
-        })
-        to:SetValue(target())
+        local items = {}
+        for _, c in ipairs(activeCompanions()) do
+            items[#items + 1] = { value = tostring(c.guid), text = c.name }
+        end
+        local t = target()
+        -- the selected companion is not with you (not called): still listed, so the choice is visible
+        local c = t ~= "party" and t and AR:FindChar(t)
+        if c and not c.active then items[#items + 1] = { value = tostring(c.guid), text = c.name .. " (not called)" } end
+        items[#items + 1] = { value = "party", text = "All companions (party chat)" }
+        to:SetItems(items)
+        to:SetValue(t == "party" and "party" or tostring(t or ""))
         local list = custom()
         for i, row in ipairs(self.rows) do
             local cmd = list[i]

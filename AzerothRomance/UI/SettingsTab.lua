@@ -163,4 +163,4 @@ local function build(f)
     end
 end
 
-UI:RegisterTab("settings", "Settings", build)
+UI:RegisterTab("settings", "Settings", build, { group = "companion" })
