@@ -226,8 +226,26 @@ handlers.models = function(msg)
     AR:Fire("MODELS_CHANGED")
 end
 
+-- memory_changed arrives once per changed memory (many at once after an import or a tidy-up): every tab that
+-- shows memories reloads at most once per second per companion, and not while an import / export is running.
+local memoryDirty = {}   -- guid (0 = unknown) -> GetTime() when MEMORY_CHANGED fires
+local memoryTimer = CreateFrame("Frame")
+memoryTimer:SetScript("OnUpdate", function()
+    if not next(memoryDirty) then return end
+    if AR.Transfer and AR.Transfer:Busy() then return end
+    local now = GetTime()
+    for g, at in pairs(memoryDirty) do
+        if now >= at then
+            memoryDirty[g] = nil
+            AR:Fire("MEMORY_CHANGED", g ~= 0 and g or nil)
+        end
+    end
+end)
+memoryTimer:Show()
+
 handlers.memory_changed = function(msg)
-    AR:Fire("MEMORY_CHANGED", companionGuid(msg))
+    local g = companionGuid(msg) or 0
+    if not memoryDirty[g] then memoryDirty[g] = GetTime() + 1 end
 end
 
 handlers.error = function(msg)

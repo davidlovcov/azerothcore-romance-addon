@@ -424,6 +424,27 @@ do
     AR.state.chars = savedChars
 end
 
+-- 10b. a burst of memory_changed (an import, a tidy-up) reloads the open memory list once ---------
+do
+    local MV = AR.MemoryViewer
+    MV:Open(2)
+    drainRequests()
+    for i = 1, 50 do serverSend({ op = "memory_changed", guid = 2, id = i }) end
+    local n, rel = 0, 0
+    for _ = 1, 40 do
+        stub.Advance(0.1)
+        stub.Update(0.1)
+        for _, m in ipairs(drainRequests()) do
+            if m.op == "get_memories" then
+                if m.kind == "relationship" then rel = rel + 1 elseif m.kind == nil then n = n + 1 end
+            end
+        end
+    end
+    check(n == 1, "50 memory_changed pushes reload the memory list once (got " .. n .. ")")
+    check(rel <= 1, "... and the relationship moments at most once (got " .. rel .. ")")
+    MV.frame:Hide()
+end
+
 -- 11. no unexpected UI errors -------------------------------------------------------
 local unexpected = {}
 for _, e in ipairs(AR.state.errors) do
