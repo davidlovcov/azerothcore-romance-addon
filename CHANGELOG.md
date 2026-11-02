@@ -7,6 +7,12 @@
 - Your settings come along if you rename the saved variables file (README, "Upgrading from AzerothRomance"); memory exports made before the rename can still be imported.
 
 ### Added
+- Simpler by default; the extras are one click away and the addon remembers what you opened:
+  - Quests tab: Lead / Share / Take only; "Edit list" shows the order (Up / Down, Apply, Reset), Ignore and Abandon.
+  - Settings tab: the basics (AI, party chat, wait for loot, speaking up); "Show advanced settings" for spoken commands, listening in party, model, creativity and reply length.
+  - Personality tab: presets, identity and "romantic relationship possible" first; "Customize story, traits & style" for the rest (a preset fills it all in).
+  - Commands tab: the 8 everyday commands; "More commands" for the rest.
+  - Companion tab: three "Getting started" steps until you call your first companion.
 - Companion tab: without Ollama (off on the server or unreachable) it says "commands work, no conversation"; the module answers commands in plain words then.
 - Quests tab: the quests of the whole group (who has which, who is done) and the quests available around. Change the order with Up / Down and "Apply order" (the leading companion switches right away), "Lead" sends the selected companion there, "Ignore" keeps a quest from ever being picked up or done, "Abandon" (click twice) drops it for every companion. Replaces the Character tab's quest order window. Needs mod-romance 1.1.1.
 - Quests tab: "Share" per group quest (enabled when the quest can be shared and someone lacks it; the tooltip names who) and "Take" per quest around, which shows who can take it (companions, and "you"). Taking an ignored quest unignores it.

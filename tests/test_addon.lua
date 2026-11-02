@@ -682,6 +682,77 @@ do
     TC.state.selected = nil
 end
 
+-- 10e. simple by default: the extras are one click away and the choice is remembered -----------
+do
+    -- Settings: basics visible, advanced folded
+    TC.db.showAdvancedSettings = nil
+    TC.UI:ShowTab("settings")
+    local st = TC.UI.tabs.settings.frame
+    check(not st.advanced[1]:IsShown() and st.advToggle:GetText() == "Show advanced settings", "Settings: advanced settings folded by default")
+    st.advToggle:Click()
+    check(st.advanced[1]:IsShown() and st.advanced[#st.advanced]:IsShown() and TC.db.showAdvancedSettings, "Settings: advanced settings open, remembered")
+    st.advToggle:Click()
+
+    -- Commands: the everyday commands, the rest under "More commands"
+    TC.db.showMoreCommands = nil
+    TC.UI:ShowTab("commands")
+    local cf = TC.UI.tabs.commands.frame
+    local shown, hidden = 0, 0
+    for i, c in ipairs(TC.BUILTIN_COMMANDS) do
+        if cf.builtinButtons[i]:IsShown() then shown = shown + 1 elseif c[3] then hidden = hidden + 1 end
+    end
+    check(shown == 8 and hidden == #TC.BUILTIN_COMMANDS - 8, "Commands: 8 everyday commands, the rest folded (" .. shown .. ")")
+    cf.moreButton:Click()
+    local all = true
+    for i = 1, #TC.BUILTIN_COMMANDS do all = all and cf.builtinButtons[i]:IsShown() end
+    check(all and cf.moreButton:GetText() == "Fewer commands", "Commands: More commands shows all")
+    cf.moreButton:Click()
+
+    -- Quests: Lead / Share / Take by default; Edit list for order, Ignore, Abandon
+    local Q = TC.GroupQuests
+    Q.editing = false
+    Q:Load({ levelCap = 4, companions = 1,
+        quests = { { id = 102, title = "Unfortunate Measures", level = 3, sharable = true, missing = { "you" }, who = { { name = "Elara" } } },
+                   { id = 103, title = "Windows", level = 2, sharable = true, missing = {}, who = { { name = "Elara" } } } },
+        available = { { id = 201, title = "Thirst Unending", level = 3, giver = "Helion", distance = 40, direction = "north", takers = { "Elara" } } } })
+    TC.UI:ShowTab("quests")
+    local qf = TC.UI.tabs.quests.frame
+    qf:Render()
+    local r1 = qf.rows[1]
+    check(r1.lead:IsShown() and r1.share:IsShown() and not r1.up:IsShown() and not r1.ignore:IsShown() and not r1.abandon:IsShown()
+        and not qf.apply:IsShown() and not qf.arows[1].ignore:IsShown() and qf.arows[1].take:IsShown(), "Quests: only Lead / Share / Take by default")
+    qf.edit:Click()
+    check(Q.editing and r1.up:IsShown() and r1.ignore:IsShown() and r1.abandon:IsShown() and not r1.lead:IsShown()
+        and qf.apply:IsShown() and qf.arows[1].ignore:IsShown() and qf.edit:GetText() == "Done", "Quests: Edit list shows order, Ignore, Abandon")
+    r1.down:Click()
+    qf.edit:Click()
+    check(Q.editing and qf.status:GetText():find("isn't applied"), "Quests: Done with an unapplied order asks to apply first")
+    qf.reset:Click()
+    qf.edit:Click()
+    check(not Q.editing, "Quests: Done after reset goes back to the simple view")
+
+    -- Personality: presets and identity; the rest behind Customize
+    TC.db.showPersonalityDetails = nil
+    TC.UI:ShowTab("personality")
+    local pf = TC.UI.tabs.personality.frame
+    check(not pf.details:IsShown() and pf.detailsButton:GetText():find("Customize"), "Personality: story, traits and style folded by default")
+    pf.detailsButton:Click()
+    check(pf.details:IsShown() and TC.db.showPersonalityDetails, "Personality: Customize opens them, remembered")
+    pf.detailsButton:Click()
+
+    -- Companion tab: three steps until a companion is called
+    local saved = TC.state.chars
+    TC.state.chars = { { guid = 2, name = "Elara" } }
+    TC.UI:ShowTab("companion")
+    local cpf = TC.UI.tabs.companion.frame
+    cpf:RefreshCard()
+    check(cpf.help:GetText():find("Getting started"), "Companion tab: getting started while no companion is called")
+    TC.state.chars = { { guid = 2, name = "Elara", active = true } }
+    cpf:RefreshCard()
+    check(not cpf.help:GetText():find("Getting started"), "Companion tab: the normal help once one is called")
+    TC.state.chars = saved
+end
+
 -- 11. no unexpected UI errors -------------------------------------------------------
 local unexpected = {}
 for _, e in ipairs(TC.state.errors) do

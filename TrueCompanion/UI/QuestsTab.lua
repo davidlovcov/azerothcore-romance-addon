@@ -2,6 +2,7 @@
   TrueCompanion - Quests tab: the quests of the whole group (you and your companions) and the quests
   available around, in one place.
 
+  The everyday view shows Lead / Share / Take; "Edit list" shows the order buttons, Ignore and Abandon.
   - Order: the order the leading companion does them on "lead the way". Move with Up / Down, then
     "Apply order" (she switches right away if she is leading). "Reset order" lets her choose again.
   - Lead: the selected companion leads there now (a finished quest: to turn it in).
@@ -152,18 +153,28 @@ local function build(f)
     h1:SetPoint("TOPLEFT", 8, -6)
     local cap = W.Label(top, "", 10, W.MUTED)
     cap:SetPoint("TOPLEFT", 140, -9)
-    cap:SetWidth(300)
+    cap:SetWidth(280)
     f.apply = W.Button(top, "Apply order", 100, 20, function()
         Q:Apply()
         say("Order applied: the leading companion does the first quest that is still needed.")
     end)
-    f.apply:SetPoint("TOPRIGHT", -112, -4)
+    f.apply:SetPoint("TOPRIGHT", -218, -4)
     W.Tooltip(f.apply, "Apply order", "Sends the new order. A companion who is leading right now switches to the new first quest.")
     f.reset = W.Button(top, "Reset order", 100, 20, function()
         Q:ResetOrder()
         say("Order reset: she follows her quest log again.")
     end)
-    f.reset:SetPoint("TOPRIGHT", -6, -4)
+    f.reset:SetPoint("TOPRIGHT", -112, -4)
+    -- the everyday view shows Lead / Share / Take; "Edit list" adds the order, Ignore and Abandon
+    f.edit = W.Button(top, "Edit list", 100, 20, function()
+        if Q.editing and Q.changed then
+            return say("Your new order isn't applied yet: click \"Apply order\" (or \"Reset order\").", true)
+        end
+        Q.editing = not Q.editing
+        f:Render()
+    end)
+    f.edit:SetPoint("TOPRIGHT", -6, -4)
+    W.Tooltip(f.edit, "Edit list", "Change the order she does the quests in, ignore quests or abandon them for every companion.")
 
     f.rows = {}
     for i = 1, QUEST_ROWS do
@@ -174,17 +185,18 @@ local function build(f)
         r.text:SetWidth(400)
         r.text:SetHeight(14)   -- one line: a long one is cut, not wrapped into the next row
         r.up = W.Button(top, "Up", 30, 20)
-        r.up:SetPoint("TOPLEFT", 416, y)
-        r.down = W.Button(top, "Down", 42, 20)
-        r.down:SetPoint("TOPLEFT", 448, y)
-        r.lead = W.Button(top, "Lead", 42, 20)
-        r.lead:SetPoint("TOPLEFT", 492, y)
-        r.share = W.Button(top, "Share", 48, 20)
-        r.share:SetPoint("TOPLEFT", 536, y)
+        r.up:SetPoint("TOPLEFT", 500, y)
+        r.down = W.Button(top, "Down", 46, 20)
+        r.down:SetPoint("TOPLEFT", 534, y)
         r.ignore = W.Button(top, "Ignore", 58, 20)
         r.ignore:SetPoint("TOPLEFT", 586, y)
         r.abandon = W.Button(top, "Abandon", 64, 20)
         r.abandon:SetPoint("TOPLEFT", 646, y)
+        -- everyday buttons share the right edge with the edit buttons; only one set is shown
+        r.lead = W.Button(top, "Lead", 54, 20)
+        r.lead:SetPoint("TOPLEFT", 586, y)
+        r.share = W.Button(top, "Share", 64, 20)
+        r.share:SetPoint("TOPLEFT", 646, y)
         f.rows[i] = r
     end
     f.prev = W.Button(top, "<", 26, 18, function() Q.page = math.max(1, Q.page - 1) f:Render() end)
@@ -235,6 +247,9 @@ local function build(f)
         Q.page = math.min(Q.page, pages)
         self.pageText:SetText(("%d/%d"):format(Q.page, pages))
         if Q.changed then self.apply:Enable() else self.apply:Disable() end
+        UI.SetShown(self.apply, Q.editing)
+        UI.SetShown(self.reset, Q.editing)
+        self.edit:SetText(Q.editing and "Done" or "Edit list")
         for i, r in ipairs(self.rows) do
             local n = (Q.page - 1) * QUEST_ROWS + i
             local q = Q.quests[n]
@@ -242,7 +257,10 @@ local function build(f)
             if not q then
                 for _, w in ipairs(widgets) do w:Hide() end
             else
-                for _, w in ipairs(widgets) do w:Show() end
+                r.text:Show()
+                for _, w in ipairs({ r.up, r.down, r.ignore, r.abandon }) do UI.SetShown(w, Q.editing) end
+                for _, w in ipairs({ r.lead, r.share }) do UI.SetShown(w, not Q.editing) end
+                r.text:SetWidth(Q.editing and 484 or 570)
                 local isIgnored = ignored[q.id] ~= nil
                 r.text:SetText(("%d. |cffffd100[%d]|r %s%s  %s"):format(n, q.level or 0, isIgnored and "|cff888888" or "", (q.title or "?") ..
                     (isIgnored and " (ignored)|r" or ""), whoText(q)))
@@ -303,7 +321,7 @@ local function build(f)
             else
                 r.text:Show()
                 r.take:Show()
-                r.ignore:Show()
+                UI.SetShown(r.ignore, Q.editing)
                 local isIgnored = ignored[a.id] ~= nil
                 local takers = Q:Takers(a)
                 r.text:SetText(("|cffffd100[%d]|r %s%s%s%s  |cffaaaaaa%s, %d yd %s|r  %s"):format(a.level or 0, isIgnored and "|cff888888" or "",

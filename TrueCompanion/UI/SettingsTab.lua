@@ -15,28 +15,44 @@ local function build(f)
     local who = W.Label(left, "", 11, W.MUTED)
     who:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, -4)
 
+    -- the basics: what most players change
     local ai = W.Check(left, "AI conversation enabled", "Off = a regular Playerbot (no Ollama requests at all).")
-    ai:SetPoint("TOPLEFT", 10, -48)
-    local proactive = W.Check(left, "Starts conversations unprompted", "Spontaneous remarks while you travel. Never during combat.")
-    proactive:SetPoint("TOPLEFT", 10, -74)
-    local freq = W.Slider(left, "How often to speak up", 200, 0, 100, 5, "rarely", "often")
-    freq:SetPoint("TOPLEFT", 40, -112)
-    local commands = W.Check(left, "Understand spoken commands", "\"Elara, follow me\" -> follow. Only follow, stay, attack and flee.")
-    commands:SetPoint("TOPLEFT", 10, -146)
+    ai:SetPoint("TOPLEFT", 10, -44)
     local party = W.Check(left, "Answer in party chat", "Reply in party chat instead of whispering you.")
-    party:SetPoint("TOPLEFT", 10, -172)
-    local listen = W.Check(left, "Listen in party chat when addressed by name")
-    listen:SetPoint("TOPLEFT", 10, -198)
+    party:SetPoint("TOPLEFT", 10, -68)
     local waitLoot = W.Check(left, "Wait for me to loot",
         "After a fight she also waits until you have looted (your round-robin turn, your quest items). Off: she loots her own and goes on.")
-    waitLoot:SetPoint("TOPLEFT", 10, -224)
+    waitLoot:SetPoint("TOPLEFT", 10, -92)
+    local proactive = W.Check(left, "Starts conversations unprompted", "Spontaneous remarks while you travel. Never during combat.")
+    proactive:SetPoint("TOPLEFT", 10, -116)
+    local freq = W.Slider(left, "How often to speak up", 200, 0, 100, 5, "rarely", "often")
+    freq:SetPoint("TOPLEFT", 40, -152)
 
+    -- advanced: folded away unless opened (remembered)
+    local advToggle = W.Button(left, "", 170, 20)
+    advToggle:SetPoint("TOPLEFT", 12, -194)
+    local commands = W.Check(left, "Understand spoken commands", "\"Elara, follow me\" -> follow. Only follow, stay, attack and flee.")
+    commands:SetPoint("TOPLEFT", 10, -220)
+    local listen = W.Check(left, "Listen in party chat when addressed by name")
+    listen:SetPoint("TOPLEFT", 10, -244)
     local model = W.Dropdown(left, "Model (server default if empty)", 260, {})
-    model:SetPoint("TOPLEFT", 4, -254)
+    model:SetPoint("TOPLEFT", 4, -268)
     local temp = W.Slider(left, "Creativity (temperature x100, 0 = server default)", 220, 0, 120, 5, "default", "wild")
-    temp:SetPoint("TOPLEFT", 40, -316)
+    temp:SetPoint("TOPLEFT", 40, -330)
     local maxChars = W.Slider(left, "Maximum reply length (characters, 0 = default)", 220, 0, 600, 25, "default", "600")
-    maxChars:SetPoint("TOPLEFT", 40, -364)
+    maxChars:SetPoint("TOPLEFT", 40, -374)
+    local advanced = { commands, listen, model, temp, maxChars }
+    local function showAdvanced()
+        local open = TC.db.showAdvancedSettings and true or false
+        for _, w in ipairs(advanced) do UI.SetShown(w, open) end
+        advToggle:SetText(open and "Hide advanced settings" or "Show advanced settings")
+    end
+    advToggle:SetScript("OnClick", function()
+        TC.db.showAdvancedSettings = not TC.db.showAdvancedSettings
+        showAdvanced()
+    end)
+    W.Tooltip(advToggle, "Advanced settings", "Spoken commands, listening in party chat, the AI model, creativity and reply length.")
+    f.advToggle, f.advanced = advToggle, advanced
 
     local status = W.Label(left, "", 11, W.MUTED)
     status:SetPoint("BOTTOMLEFT", 12, 14)
@@ -85,6 +101,7 @@ local function build(f)
     serverText:SetWidth(276)
 
     function f:Load()
+        showAdvanced()
         local g, comp, char = TC:Selected()
         local s = (comp and comp.settings) or {}
         who:SetText(char and ("for " .. char.name) or "Select a companion first.")

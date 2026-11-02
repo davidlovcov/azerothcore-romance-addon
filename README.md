@@ -29,6 +29,8 @@ World of Warcraft **3.3.5a** addon (Interface 30300) for the AzerothCore module 
 
 ## Features
 
+Everything is simple by default: each tab shows the everyday things, and the extras (quest order, advanced settings, personality details, more commands) are one click away.
+
 The tabs come in two rows: on top the general ones (Companion, Commands, Quests, Player Profile), below them the tabs about the companion selected on the Companion tab (Chat, Character, Personality, Relationship, Settings), labelled with her name.
 
 - **Companion:** your account's characters with level, race, class and live status. Unavailable characters are greyed out and explain why. Call or send home your companions (several at once), and turn their AI on or off. The window header names the companions that are really with you.

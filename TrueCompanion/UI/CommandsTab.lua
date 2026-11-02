@@ -14,22 +14,22 @@ local UI = TC.UI
 local MAX_CUSTOM = 12
 local MACRO_ICON = 1   -- the question mark; another icon can be picked in the macro window (/macro)
 
--- label, what is said
+-- label, what is said, [true = only under "More commands"]; the first ones are the everyday commands
 local BUILTIN = {
     { "Follow me", "follow me" },
     { "Wait here", "wait" },
-    { "Go on", "go on" },
     { "Lead the way", "lead the way" },
     { "Stop leading", "stop leading" },
-    { "Attack", "attack" },
     { "Attack all here", "attack all here" },
     { "Stop attacking", "stop attacking" },
     { "Pick up quests", "pick up all your quests" },
-    { "Accept quest", "accept the quest" },
     { "Turn in quests", "turn in your quests" },
-    { "Share quests", "share your quests" },
-    { "Sell junk", "sell your junk" },
-    { "Bags?", "what's in your bags?" },
+    { "Go on", "go on", true },
+    { "Attack", "attack", true },
+    { "Accept quest", "accept the quest", true },
+    { "Share quests", "share your quests", true },
+    { "Sell junk", "sell your junk", true },
+    { "Bags?", "what's in your bags?", true },
 }
 TC.BUILTIN_COMMANDS = BUILTIN
 
@@ -159,6 +159,21 @@ local function build(f)
         W.Tooltip(b, cmd[1], "Says: \"" .. cmd[2] .. "\"")
         f.builtinButtons[i] = b
     end
+    local more = W.Button(left, "", 172, 20)
+    more:SetPoint("BOTTOMLEFT", 8, 8)
+    W.Tooltip(more, "More commands", "Go on, attack your target, accept a quest, share quests, sell junk, ask what's in her bags.")
+    local function showMore()
+        local open = TC.db.showMoreCommands and true or false
+        for i, cmd in ipairs(BUILTIN) do
+            if cmd[3] then UI.SetShown(f.builtinButtons[i], open) end
+        end
+        more:SetText(open and "Fewer commands" or "More commands")
+    end
+    more:SetScript("OnClick", function()
+        TC.db.showMoreCommands = not TC.db.showMoreCommands
+        showMore()
+    end)
+    f.moreButton = more
 
     -- own commands
     local right = W.Panel(f, 380, 330, 0.35)
@@ -218,6 +233,7 @@ local function build(f)
         "Existing ones with the same name are updated. Character macros first, then account macros.")
 
     function f:Render()
+        showMore()
         local items = {}
         for _, c in ipairs(activeCompanions()) do
             items[#items + 1] = { value = tostring(c.guid), text = c.name }

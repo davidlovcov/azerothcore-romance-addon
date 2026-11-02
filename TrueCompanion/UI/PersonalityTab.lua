@@ -152,29 +152,48 @@ local function build(f)
     fields.age.edit:SetNumeric(true)
     y = y - 50
 
+    local romance = W.Check(c, "Romantic relationship possible", "Untick for a purely platonic companion (never progresses beyond close friends).")
+    romance:SetPoint("TOPLEFT", 4, y)
+    local autoAccept = W.Check(c, "Always says yes to proposals", "Skip the relationship requirements for proposals. Off = the companion decides based on your relationship.")
+    autoAccept:SetPoint("TOPLEFT", 244, y)
+    y = y - 34
+
+    -- everything below (story, traits, response style, custom instructions) is folded away until "Customize":
+    -- a preset already fills it all in
+    local details = W.Button(c, "", 260, 22)
+    details:SetPoint("TOPLEFT", 4, y)
+    W.Tooltip(details, "Customize", "Story & taste, the 12 personality traits, response style and custom instructions. A preset fills them all in.")
+    y = y - 34
+    local yFolded = y
+    local adv = CreateFrame("Frame", nil, c)
+    adv:SetPoint("TOPLEFT", 0, 0)
+    adv:SetWidth(730)
+    adv:SetHeight(1)
+    f.detailsButton, f.details = details, adv
+
     -- ---------------------------------------------------------------- story fields
-    h = W.Heading(c, "Story & taste")
+    h = W.Heading(adv, "Story & taste")
     h:SetPoint("TOPLEFT", 4, y)
-    local randomStory = W.Button(c, "Randomize", 90, 18)
+    local randomStory = W.Button(adv, "Randomize", 90, 18)
     randomStory:SetPoint("TOPLEFT", 140, y + 2)
     W.Tooltip(randomStory, "Randomize story & taste", "Fills the fields below with a random story. Nothing is saved until you press Save.")
     y = y - 18
     for i, fd in ipairs(TEXT_FIELDS) do
         local col = (i - 1) % 2
-        local area = W.TextArea(c, fd.label, 350, 54, 600)
+        local area = W.TextArea(adv, fd.label, 350, 54, 600)
         area:SetPoint("TOPLEFT", col * 364, y)
         fields[fd.key] = area
         if col == 1 or i == #TEXT_FIELDS then y = y - 78 end
     end
 
     -- ---------------------------------------------------------------- traits
-    h = W.Heading(c, "Personality")
+    h = W.Heading(adv, "Personality")
     h:SetPoint("TOPLEFT", 4, y)
     y = y - 30
     local sliders = {}
     for i, t in ipairs(TRAITS) do
         local col = (i - 1) % 3
-        local s = W.Slider(c, t.label, 210, 0, 100, 5, t.low, t.high)
+        local s = W.Slider(adv, t.label, 210, 0, 100, 5, t.low, t.high)
         s:SetPoint("TOPLEFT", 10 + col * 240, y)
         sliders[t.key] = s
         if col == 2 then y = y - 52 end
@@ -182,39 +201,46 @@ local function build(f)
     y = y - 8
 
     -- ---------------------------------------------------------------- response style
-    h = W.Heading(c, "Response style")
+    h = W.Heading(adv, "Response style")
     h:SetPoint("TOPLEFT", 4, y)
     y = y - 18
-    local length = W.Dropdown(c, "Message length", 200, {
+    local length = W.Dropdown(adv, "Message length", 200, {
         { value = "short", text = "Short" }, { value = "medium", text = "Medium" },
         { value = "long", text = "Detailed" }, { value = "varied", text = "Natural (mostly short)" } })
     length:SetPoint("TOPLEFT", 0, y)
-    local language = W.Dropdown(c, "Language", 200, {
+    local language = W.Dropdown(adv, "Language", 200, {
         { value = "auto", text = "Match my language" }, { value = "en", text = "English" }, { value = "de", text = "Deutsch" } })
     language:SetPoint("TOPLEFT", 220, y)
-    local formal = W.Check(c, "Formal language", "Polite and somewhat formal wording.")
+    local formal = W.Check(adv, "Formal language", "Polite and somewhat formal wording.")
     formal:SetPoint("TOPLEFT", 450, y - 14)
     y = y - 50
     local styleChecks = {}
     for i, st in ipairs(STYLES) do
         local col = (i - 1) % 3
-        local cb = W.Check(c, st.label)
+        local cb = W.Check(adv, st.label)
         cb:SetPoint("TOPLEFT", 4 + col * 240, y)
         styleChecks[st.id] = cb
         if col == 2 then y = y - 24 end
     end
     y = y - 10
-    local romance = W.Check(c, "Romantic relationship possible", "Untick for a purely platonic companion (never progresses beyond close friends).")
-    romance:SetPoint("TOPLEFT", 4, y)
-    local autoAccept = W.Check(c, "Always says yes to proposals", "Skip the relationship requirements for proposals. Off = the companion decides based on your relationship.")
-    autoAccept:SetPoint("TOPLEFT", 244, y)
-    y = y - 34
 
-    local custom = W.TextArea(c, "Custom instructions (e.g. \"Initially shy and distant, but gradually becomes affectionate.\")", 714, 90, 1200)
+    local custom = W.TextArea(adv, "Custom instructions (e.g. \"Initially shy and distant, but gradually becomes affectionate.\")", 714, 90, 1200)
     custom:SetPoint("TOPLEFT", 0, y)
     fields.customInstructions = custom
     y = y - 120
-    c:SetHeight(-y + 20)
+    local yFull = y
+    local function showDetails()
+        local open = TC.db.showPersonalityDetails and true or false
+        UI.SetShown(adv, open)
+        c:SetHeight((open and -yFull or -yFolded) + 20)
+        details:SetText(open and "Hide details" or "Customize story, traits & style")
+    end
+    details:SetScript("OnClick", function()
+        TC.db.showPersonalityDetails = not TC.db.showPersonalityDetails
+        showDetails()
+    end)
+    showDetails()
+
 
     -- ---------------------------------------------------------------- logic
 

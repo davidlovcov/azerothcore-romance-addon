@@ -178,15 +178,23 @@ local function build(f)
     local rel = W.Button(card, "Relationship", 110, 22, function() UI:ShowTab("relationship") end)
     rel:SetPoint("LEFT", talk, "RIGHT", 8, 0)
 
-    local help = W.Label(card,
-        "Companions are your own characters, logged in as Playerbots. Combat, following and spells stay with " ..
+    local HELP = "Companions are your own characters, logged in as Playerbots. Combat, following and spells stay with " ..
         "Playerbots; only the companion you select here talks through the AI.\n\n" ..
         "Whisper them normally or use the Chat tab. Plain Playerbots commands (follow, stay, attack...) still work; " ..
-        "prefix a line with ! to force a command.", 11, W.MUTED)
+        "prefix a line with ! to force a command."
+    -- before the first companion is called: three steps instead of the explanation
+    local GETTING_STARTED = "|cffffd100Getting started|r\n" ..
+        "1. Pick one of your characters on the left.\n" ..
+        "2. Click \"Call companion\": they log in and join your party.\n" ..
+        "3. Talk to them (whisper, or the Chat tab), or use the Commands and Quests tabs.\n\n" ..
+        "The tabs in the second row (Chat, Character, ...) are about the companion selected here."
+    local help = W.Label(card, HELP, 11, W.MUTED)
     help:SetPoint("BOTTOMLEFT", 16, 16)
     help:SetWidth(390)
+    f.help = help
 
     function f:RefreshCard()
+        help:SetText(#TC:ActiveNames() == 0 and GETTING_STARTED or HELP)
         local g, comp, char = TC:Selected()
         local enabled = false
         if not char then
