@@ -10,7 +10,7 @@
 local AR = _G.AzerothRomance
 local Protocol = AR.Protocol
 
-AR.version = "1.1.0"
+AR.version = "1.1.1-dev"
 AR.state = {
     connected = false,
     hello = nil,
@@ -231,6 +231,8 @@ handlers.memory_changed = function(msg)
 end
 
 handlers.error = function(msg)
+    -- a running import / export resends a rate-limited step by itself: nothing to report
+    if msg.code == "rate_limited" and AR.Transfer and AR.Transfer:Busy() then return end
     local text = (msg.message and msg.message ~= "") and msg.message or msg.code or "unknown error"
     AR:LogError(msg["for"] or "server", (msg.code or "") .. ": " .. text)
     -- "Too many requests" once in a while, not once per rejected request

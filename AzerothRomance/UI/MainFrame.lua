@@ -251,7 +251,7 @@ local function buildMinimapButton()
     icon:SetWidth(20)
     icon:SetHeight(20)
     icon:SetTexture("Interface\\AddOns\\AzerothRomance\\Media\\heart")
-    icon:SetPoint("TOPLEFT", 7, -5)
+    icon:SetPoint("CENTER", b, "TOPLEFT", 16.5, -16.5)   -- the middle of the border ring
     b:SetScript("OnClick", function(_, button)
         if button == "RightButton" then
             UI:Open("chat")

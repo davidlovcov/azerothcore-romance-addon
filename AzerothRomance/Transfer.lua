@@ -19,9 +19,20 @@ T.REQUEST_BUDGET = 14000     -- bytes per import request; the server accepts 16 
 T.TIMEOUT = 30               -- seconds without an answer before a transfer is abandoned
 
 local active               -- { deadline, fail }
+local timers = {}          -- { at, fn }: delayed retries
 
 local watchdog = CreateFrame("Frame")
 watchdog:SetScript("OnUpdate", function()
+    if #timers > 0 then
+        local now = GetTime()
+        for i = #timers, 1, -1 do
+            if timers[i].at <= now then
+                local fn = timers[i].fn
+                table.remove(timers, i)
+                fn()
+            end
+        end
+    end
     if active and GetTime() > active.deadline then
         local fail = active.fail
         active = nil
@@ -39,6 +50,24 @@ local function finish()
 end
 
 function T:Busy() return active ~= nil end
+
+-- Sends a transfer request; when the server answers "Too many requests" the same request is sent again
+-- after a short pause (a transfer shares the server's rate limit with everything else the addon does).
+local function request(op, payload, cb)
+    local tries = 0
+    local function send()
+        AR:Request(op, payload, function(msg)
+            if msg.op == "error" and msg.code == "rate_limited" and active and tries < 8 then
+                tries = tries + 1
+                active.deadline = GetTime() + T.TIMEOUT
+                timers[#timers + 1] = { at = GetTime() + 1.5, fn = send }
+                return
+            end
+            cb(msg)
+        end)
+    end
+    send()
+end
 
 -- ------------------------------------------------------------------ pages
 
@@ -117,7 +146,7 @@ function T:Export(guid, onProgress, onDone)
     end
     local function ask(part)
         step(fail)
-        AR:Request("export", { guid = guid, part = part }, function(msg)
+        request("export", { guid = guid, part = part }, function(msg)
             if not active then return end
             if msg.op ~= "export_data" then return fail(AR:AckText(msg)) end
             if msg.parts == nil then          -- server without paging: one complete export
@@ -165,7 +194,7 @@ function T:Import(guid, text, onProgress, onDone)
     local function sendPart(i)
         if i > #pages then
             step(fail)
-            AR:Request("import_end", { guid = guid }, function(msg)
+            request("import_end", { guid = guid }, function(msg)
                 if not expectOk(msg) then return end
                 finish()
                 onDone(true, msg.notes or {})
@@ -173,14 +202,14 @@ function T:Import(guid, text, onProgress, onDone)
             return
         end
         step(fail)
-        AR:Request("import_part", { guid = guid, index = i - 1, data = pages[i] }, function(msg)
+        request("import_part", { guid = guid, index = i - 1, data = pages[i] }, function(msg)
             if not expectOk(msg) then return end
             if onProgress then onProgress(i, #pages) end
             sendPart(i + 1)
         end)
     end
     step(fail)
-    AR:Request("import_begin", { guid = guid, parts = #pages }, function(msg)
+    request("import_begin", { guid = guid, parts = #pages }, function(msg)
         if not expectOk(msg) then return end
         sendPart(1)
     end)

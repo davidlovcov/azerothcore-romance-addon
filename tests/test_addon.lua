@@ -244,6 +244,24 @@ do
     serverSend({ op = "ack", ["for"] = "import_end", req = fin.req, ok = true, notes = { "3 of 3 memories imported" } })
     check(done and done.ok and done.notes[1]:find("3 of 3"), "import reports the server's result")
 
+    -- "Too many requests" on a part: the same part is sent again after a pause and the import still finishes
+    T:Import(2, result.text, nil, function(ok, notes) done = { ok = ok, notes = notes } end)
+    begin = findOp(drainRequests(), "import_begin")
+    serverSend({ op = "error", code = "rate_limited", ["for"] = "import_begin", req = begin.req, message = "Too many requests, slow down." })
+    check(findOp(drainRequests(), "import_begin") == nil, "a rate-limited step waits before it is resent")
+    stub.Advance(2)
+    stub.Update(0.1)
+    begin = findOp(drainRequests(), "import_begin")
+    check(begin ~= nil, "a rate-limited step is sent again")
+    serverSend({ op = "ack", ["for"] = "import_begin", req = begin.req, ok = true })
+    for i = 1, begin.parts do
+        local part = findOp(drainRequests(), "import_part")
+        serverSend({ op = "ack", ["for"] = "import_part", req = part.req, ok = true })
+    end
+    fin = findOp(drainRequests(), "import_end")
+    serverSend({ op = "ack", ["for"] = "import_end", req = fin.req, ok = true, notes = { "3 of 3 memories imported" } })
+    check(done and done.ok, "import completes after a rate-limited step")
+
     -- a refused part aborts; a silent server times out
     T:Import(2, result.text, nil, function(ok, err) done = { ok = ok, err = err } end)
     begin = findOp(drainRequests(), "import_begin")
@@ -268,6 +286,13 @@ do
     check(AzerothRomanceTransferFrame and AzerothRomanceTransferFrame:IsShown(), "import dialog opens")
     check(MV.transfer.saved:GetValue() == "Elara", "the last saved export is preselected")
     check(#MV.transfer.saved.items == 2, "saved exports are listed")
+    -- an export that is too large to show has no text box, only the explanation
+    MV:ShowTransfer("export", "", "86 memories, 26.5 KB - too large to show here.")
+    check(not MV.transfer.area:IsShown() and MV.transfer.note:IsShown(), "large export: no text box, only the note")
+    MV:ShowTransfer("export", "{\"a\":1}", "1 memory")
+    check(MV.transfer.area:IsShown() and not MV.transfer.note:IsShown(), "small export: text box shown")
+    MV:ShowTransfer("import")
+    check(MV.transfer.area:IsShown() and not MV.transfer.note:IsShown(), "import: text box shown again")
     MV:RunImport()
     check(findOp(drainRequests(), "import_begin") ~= nil, "importing a saved export needs no pasting")
     stub.Advance(T.TIMEOUT + 1)

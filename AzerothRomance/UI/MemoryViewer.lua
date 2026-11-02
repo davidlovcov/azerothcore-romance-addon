@@ -173,7 +173,17 @@ local function build()
     MV.ioStatus = ioStatus
 
     MV.frame, MV.rows, MV.kind, MV.search, MV.total, MV.who, MV.prev, MV.next = f, rows, kind, search, total, who, prev, nextB
-    AR:On("MEMORY_CHANGED", function(g) if f:IsShown() and g == MV.guid then MV:Load() end end)
+    -- reload the list at most every 2 seconds, and not in the middle of an import / export
+    local reloadAt
+    AR:On("MEMORY_CHANGED", function(g)
+        if f:IsShown() and g == MV.guid and not reloadAt then reloadAt = GetTime() + 2 end
+    end)
+    f:HookScript("OnUpdate", function()
+        if reloadAt and GetTime() >= reloadAt and not AR.Transfer:Busy() then
+            reloadAt = nil
+            if f:IsShown() then MV:Load() end
+        end
+    end)
 end
 
 -- ---------------------------------------------------------------- export / import
@@ -210,6 +220,12 @@ local function buildTransfer()
     d.help = W.Label(d, "", 11, W.TEXT)
     d.help:SetPoint("TOPLEFT", 14, -36)
     d.help:SetWidth(470)
+    d.help:SetJustifyV("TOP")
+    d.note = W.Label(d, "", 12, W.GOLD_DIM)   -- shown instead of the text box when an export is too large to display
+    d.note:SetPoint("TOPLEFT", 14, -112)
+    d.note:SetWidth(470)
+    d.note:SetJustifyV("TOP")
+    d.note:Hide()
     d.saved = W.Dropdown(d, "Saved export", 300, {}, function() d.area:SetValue("") end)
     d.saved:SetPoint("TOPLEFT", 10, -84)
     d.area = W.TextArea(d, "", 472, 170, MAX_SHOWN)
@@ -233,13 +249,23 @@ function MV:ShowTransfer(mode, text, info)
     if mode == "export" then
         d.title:SetText("Export of " .. name)
         d.help:SetText("The export is saved in the addon. To import it into a companion, open its Memories and press " ..
-            "\"Import...\" - no copying needed.\nTo keep it somewhere else, press Ctrl+C now to copy the text below.")
+            "\"Import...\" - no copying needed.")
         d.saved:Hide()
-        d.area:ClearAllPoints()
-        d.area:SetPoint("TOPLEFT", 14, -84)
-        d.area.caption:SetText(info or "")
-        d.area:SetValue(text or "")
         d.go:Hide()
+        if (text or "") == "" then
+            -- too large to show: no text box (nothing to copy or type), just the explanation
+            d.area:Hide()
+            d.note:SetText(info or "")
+            d.note:Show()
+            d:Show()
+            return
+        end
+        d.note:Hide()
+        d.area:Show()
+        d.area:ClearAllPoints()
+        d.area:SetPoint("TOPLEFT", 14, -96)
+        d.area.caption:SetText((info or "") .. " - press Ctrl+C to copy the text below to somewhere else.")
+        d.area:SetValue(text)
         d:Show()
         d.area.edit:SetFocus()
         d.area.edit:HighlightText()
@@ -257,6 +283,8 @@ function MV:ShowTransfer(mode, text, info)
         items[#items + 1] = { value = n, text = ("%s - %d memories - %s"):format(n, tonumber(e.memories) or 0,
             date("%d.%m. %H:%M", tonumber(e.at) or 0)) }
     end
+    d.note:Hide()
+    d.area:Show()
     d.saved:SetItems(items)
     local last = AzerothRomanceDB.lastExport
     d.saved:SetValue(savedExports()[last or ""] and last or "")
@@ -289,8 +317,8 @@ function MV:Export()
             if #text <= MAX_SHOWN then
                 self:ShowTransfer("export", text, size)
             else
-                self:ShowTransfer("export", "", size .. " - too large to show here. It is saved in the addon " ..
-                    "(and in WTF/Account/<account>/SavedVariables/AzerothRomance.lua after /reload).")
+                self:ShowTransfer("export", "", size .. " - too large to show here.\nIt is saved in the addon, and in " ..
+                    "WTF/Account/<account>/SavedVariables/AzerothRomance.lua after /reload.")
             end
         end)
 end

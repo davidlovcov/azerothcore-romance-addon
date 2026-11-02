@@ -2,7 +2,14 @@
 
 ## Unreleased
 
+### Added
+- Character tab: "Share quests" button (same as saying "share your quests").
+- Settings tab shows the addon and the server module version, and warns when they differ.
+
 ### Fixed
+- The export window: the explanation no longer runs out of the window, and an export that is too large to show has no (useless) text box.
+- Import / export no longer show "Too many requests": a step that hits the server's limit is sent again after a moment by itself. The memory list reloads at most every 2 seconds and not during a transfer.
+- Minimap button: the icon is centered in its ring.
 - Imports of many memories stopped with "Too many requests, slow down" (and repeated the message): the addon now sends at a steady pace below the server's limit, and shows that message at most every 10 seconds.
 - Export / import of many memories: transfers now run in pages with progress, a timeout and a clear error; an import changes nothing unless every part arrived. Exports too large for the text box are saved in the addon's saved variables, and "Import" with an empty box imports the last saved export.
 

@@ -109,7 +109,10 @@ local function build(f)
         local st = AR.state.status or {}
         local o = st.ollama or {}
         local feat = (AR.state.hello and AR.state.hello.features) or {}
-        serverText:SetText(("Module: %s\nOllama: %s %s\nDefault model: %s\nInstalled models: %d\nProactive chat: %s\nSpoken commands: %s\nPlayerbots: %s"):format(
+        local srv = AR.state.hello and AR.state.hello.module
+        local ver = ("Addon: v%s\nServer module: %s"):format(AR.version, srv and ("v" .. srv) or "|cffaaaaaaunknown (older module)|r")
+        if srv and srv ~= AR.version then ver = ver .. " |cffff6060(differs from the addon)|r" end
+        serverText:SetText(ver .. ("\nModule: %s\nOllama: %s %s\nDefault model: %s\nInstalled models: %d\nProactive chat: %s\nSpoken commands: %s\nPlayerbots: %s"):format(
             st.enabled == false and "|cffff6060disabled|r" or "|cff60ff60enabled|r",
             o.online and "|cff60ff60online|r" or "|cffff6060offline|r", o.version or "",
             tostring(st.model or "?"), #(o.models or {}),

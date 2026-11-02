@@ -80,6 +80,16 @@ local function build(f)
     status:SetPoint("BOTTOMLEFT", 2, 10)
     local refresh = W.Button(f, "Refresh", 90, 22)
     refresh:SetPoint("BOTTOMRIGHT", -4, 6)
+    -- same as typing "share your quests" in the chat: she shares every quest you don't have yet
+    local share = W.Button(f, "Share quests", 100, 22, function()
+        local g = AR.state.selected
+        if not g then return end
+        AR.state.typing[g] = true
+        AR:Request("chat", { guid = g, text = "share your quests" })
+        status:SetText("Asked her to share her quests.")
+    end)
+    share:SetPoint("RIGHT", refresh, "LEFT", -6, 0)
+    W.Tooltip(share, "Share quests", "She shares every quest of hers that you don't have yet and can take.\nSame as saying \"share your quests\" in the chat.")
 
     local sheet
     local elapsed = 0
