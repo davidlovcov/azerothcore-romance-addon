@@ -219,8 +219,11 @@ local function build(f)
             local present = char.status == "in_party" or char.status == "summoned"
             local aiText = not aiOn and "|cffaaaaaaoff|r" or (char.active and "|cff60ff60active|r")
                 or (present and "|cffffd100not active yet|r") or "|cff60ff60on (starts when called)|r"
-            aiLine:SetText(("AI conversation: %s   Ollama: %s"):format(aiText,
-                online and "|cff60ff60online|r" or "|cffff6060offline|r"))
+            local feat = TC.state.hello and TC.state.hello.features or {}
+            local ollama = feat.ollama == false and "|cffaaaaaaoff on this server|r - commands work, no conversation"
+                or online and "|cff60ff60online|r"
+                or "|cffff6060offline|r - commands work, no conversation"
+            aiLine:SetText(("AI conversation: %s   Ollama: %s"):format(aiText, ollama))
             if aiOn and present and not char.active then
                 aiToggle:SetText("Activate AI")
             else

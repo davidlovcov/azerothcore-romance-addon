@@ -7,6 +7,7 @@
 - Your settings come along if you rename the saved variables file (README, "Upgrading from AzerothRomance"); memory exports made before the rename can still be imported.
 
 ### Added
+- Companion tab: without Ollama (off on the server or unreachable) it says "commands work, no conversation"; the module answers commands in plain words then.
 - Quests tab: the quests of the whole group (who has which, who is done) and the quests available around. Change the order with Up / Down and "Apply order" (the leading companion switches right away), "Lead" sends the selected companion there, "Ignore" keeps a quest from ever being picked up or done, "Abandon" (click twice) drops it for every companion. Replaces the Character tab's quest order window. Needs mod-romance 1.1.1.
 - Quests tab: "Share" per group quest (enabled when the quest can be shared and someone lacks it; the tooltip names who) and "Take" per quest around, which shows who can take it (companions, and "you"). Taking an ignored quest unignores it.
 - Commands tab: "Send to" lists every companion who is with you (and party chat), so commands and macros no longer depend on the companion selected on the Companion tab.
