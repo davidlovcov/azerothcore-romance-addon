@@ -26,7 +26,7 @@ for _, f in ipairs(files) do
     assert(chunk, err)
     chunk("AzerothRomance", {})
 end
-check(#files == 17, "toc lists 17 files")
+check(#files == 18, "toc lists 18 files")
 local AR = AzerothRomance
 local Protocol = AR.Protocol
 
@@ -443,6 +443,63 @@ do
     check(n == 1, "50 memory_changed pushes reload the memory list once (got " .. n .. ")")
     check(rel <= 1, "... and the relationship moments at most once (got " .. rel .. ")")
     MV.frame:Hide()
+end
+
+-- 10c. Commands tab: send, party, macros, own commands -------------------------------------
+do
+    local stub = _G.WOWSTUB
+    AR.state.selected = 2
+    AzerothRomanceDB.commandTarget = nil
+    AR.UI:ShowTab("commands")
+    local f = AR.UI.tabs.commands.frame
+    check(f and f.builtinButtons and #f.builtinButtons == #AR.BUILTIN_COMMANDS, "commands tab shows all common commands")
+    check(AR.UI.tabBarWidth and AR.UI.tabBarWidth <= 780 - 24, "the tabs fit in the window (" .. tostring(AR.UI.tabBarWidth) .. ")")
+    drainRequests()
+    local lead
+    for i, c in ipairs(AR.BUILTIN_COMMANDS) do if c[1] == "Lead the way" then lead = f.builtinButtons[i] end end
+    lead:Click()
+    local r = findOp(drainRequests(), "chat")
+    check(r and r.guid == 2 and r.text == "lead the way", "a command button talks to the selected companion")
+
+    -- party: party chat, and a clear message when not in a party
+    AzerothRomanceDB.commandTarget = "party"
+    stub.partyMembers = 0
+    lead:Click()
+    check(#stub.chatSent == 0, "no party chat outside a party")
+    stub.partyMembers = 2
+    lead:Click()
+    check(stub.chatSent[1] and stub.chatSent[1].chatType == "PARTY" and stub.chatSent[1].text == "lead the way", "party target uses party chat")
+
+    -- macros: one on the cursor, names <= 16 characters, updated instead of duplicated
+    AzerothRomanceDB.commandTarget = "selected"
+    local idx, name = AR:MakeMacro("Lead the way", "lead the way")
+    check(idx and stub.macros[idx].body == "/w Elara lead the way" and #name <= 16, "macro whispers the selected companion")
+    local again = AR:MakeMacro("Lead the way", "lead the way")
+    check(again == idx and #stub.macros == 1, "making it twice updates the same macro")
+    AzerothRomanceDB.commandTarget = "party"
+    local pidx = AR:MakeMacro("Attack all here", "attack all here")
+    check(pidx and stub.macros[pidx].body == "/p attack all here", "party macro uses /p")
+    stub.inCombat = true
+    check(AR:MakeMacro("Wait here", "wait") == nil, "no macros in combat")
+    stub.inCombat = false
+    AzerothRomanceDB.commandTarget = "selected"
+
+    -- own commands: add, use, delete
+    f:Render()
+    f.labelEdit:SetValue("Mine")
+    f.textEdit:SetValue("lead me to the mine")
+    f.addButton:Click()
+    check(AzerothRomanceDB.commands[1] and AzerothRomanceDB.commands[1].text == "lead me to the mine", "own command saved")
+    check(f.rows[1].send:IsShown() and f.rows[1].send:GetText() == "Mine" and not f.rows[2].send:IsShown(), "own command listed")
+    drainRequests()
+    f.rows[1].send:Click()
+    r = findOp(drainRequests(), "chat")
+    check(r and r.text == "lead me to the mine", "own command is sent")
+    f.rows[1].macro:Click()
+    check(stub.cursorMacro and stub.macros[stub.cursorMacro].body == "/w Elara lead me to the mine", "own command macro is on the cursor")
+    f.rows[1].del:Click()
+    check(#AzerothRomanceDB.commands == 0 and not f.rows[1].send:IsShown(), "own command deleted")
+    AR.state.selected = nil
 end
 
 -- 11. no unexpected UI errors -------------------------------------------------------

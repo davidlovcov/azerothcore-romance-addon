@@ -144,18 +144,30 @@ function UI:Build()
     sep:SetPoint("BOTTOMLEFT")
     sep:SetPoint("BOTTOMRIGHT")
     sep:SetTexture(1, 0.82, 0.25, 0.35)
-    local x = 0
+    local normal, smallWidth = {}, 0
     for _, id in ipairs(self.order) do
         local tab = self.tabs[id]
-        local b = makeTabButton(bar, tab, x, tab.opts.small)
+        local b = makeTabButton(bar, tab, 0, tab.opts.small)
         if tab.opts.small then
             b:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, 2)
+            smallWidth = smallWidth + b:GetWidth() + 6
         else
-            b:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", x, 0)
-            x = x + b:GetWidth() + 2
+            normal[#normal + 1] = b
         end
         tab.button = b
     end
+    -- the tabs must not run into the small ones on the right: narrow them evenly if needed
+    local total = 0
+    for _, b in ipairs(normal) do total = total + b:GetWidth() + 2 end
+    local room = WIDTH - 24 - smallWidth
+    local shrink = total > room and math.ceil((total - room) / #normal) or 0
+    local x = 0
+    for _, b in ipairs(normal) do
+        if shrink > 0 then b:SetWidth(math.max(50, b:GetWidth() - shrink)) end
+        b:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", x, 0)
+        x = x + b:GetWidth() + 2
+    end
+    UI.tabBarWidth = x + smallWidth
 
     local content = CreateFrame("Frame", nil, f)
     content:SetPoint("TOPLEFT", 12, -84)

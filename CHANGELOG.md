@@ -3,10 +3,13 @@
 ## Unreleased
 
 ### Added
+- Commands tab: buttons for the common companion commands and your own ones, sent to the selected companion or to all of them in party chat. Macro mode makes a WoW macro from a button (it lands on your cursor for the action bar); "Make macros for all" creates them all.
+- Character tab: "walking behind <name>" when another companion leads.
 - Character tab: "Share quests" button (same as saying "share your quests").
 - Settings tab shows the addon and the server module version, and warns when they differ.
 
 ### Fixed
+- The tab row shrinks evenly when the tabs would not fit next to the Debug tab.
 - The export window: the explanation no longer runs out of the window, and an export that is too large to show has no (useless) text box.
 - Import / export no longer show "Too many requests": a step that hits the server's limit is sent again after a moment by itself. The memory list reloads at most every 2 seconds and not during a transfer.
 - Minimap button: the icon is centered in its ring.

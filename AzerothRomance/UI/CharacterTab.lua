@@ -108,6 +108,7 @@ local function build(f)
             return
         end
         local follow = sheet.follow == "lead" and ("|cffffd100leading|r" .. (sheet.leadQuest and (" to \"" .. sheet.leadQuest .. "\"") or ""))
+            or sheet.follow == "behind" and ("walking behind |cffffd100" .. (sheet.leader or "?") .. "|r")
             or sheet.follow == "stay" and "waiting" or sheet.follow == "follow" and "following you" or "-"
         info:SetText(("Level %d  |  %d%% health  |  bags %d/%d free  |  %s"):format(sheet.level or 0, sheet.health or 0,
             sheet.freeSlots or 0, sheet.totalSlots or 0, follow))

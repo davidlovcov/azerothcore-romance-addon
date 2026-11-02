@@ -134,6 +134,30 @@ function PlaySound() end
 function IsShiftKeyDown() return false end
 function GetCursorPosition() return 0, 0 end
 function SetPortraitTexture() end
+
+-- macros and chat (Commands tab)
+stub.macros, stub.chatSent, stub.inCombat, stub.partyMembers = {}, {}, false, 0
+MAX_ACCOUNT_MACROS, MAX_CHARACTER_MACROS = 36, 18
+function InCombatLockdown() return stub.inCombat end
+function GetNumMacros()
+    local a, c = 0, 0
+    for _, m in ipairs(stub.macros) do if m.perChar then c = c + 1 else a = a + 1 end end
+    return a, c
+end
+function GetMacroIndexByName(name)
+    for i, m in ipairs(stub.macros) do if m.name == name then return i end end
+    return 0
+end
+function CreateMacro(name, icon, body, perChar)
+    assert(#name <= 16, "macro names are limited to 16 characters: " .. name)
+    table.insert(stub.macros, { name = name, icon = icon, body = body, perChar = perChar and true or false })
+    return #stub.macros
+end
+function EditMacro(i, name, icon, body) local m = stub.macros[i] if m then m.name, m.icon, m.body = name, icon, body end return i end
+function PickupMacro(i) stub.cursorMacro = i end
+function SendChatMessage(text, chatType, lang, target) table.insert(stub.chatSent, { text = text, chatType = chatType, target = target }) end
+function GetNumPartyMembers() return stub.partyMembers end
+function GetNumRaidMembers() return 0 end
 tinsert = table.insert
 date = os.date
 time = os.time
