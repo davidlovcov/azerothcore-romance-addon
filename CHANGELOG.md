@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Added
-- Character tab: "Quest order" - her quests in the order she does them on "lead the way"; move them up or down, "Lead" goes there right away, "Reset order" lets her choose again. Needs mod-romance 1.1.1.
+- Quests tab: the quests of the whole group (who has which, who is done) and the quests available around. Change the order with Up / Down and "Apply order" (the leading companion switches right away), "Lead" sends the selected companion there, "Ignore" keeps a quest from ever being picked up or done, "Abandon" (click twice) drops it for every companion. Replaces the Character tab's quest order window. Needs mod-romance 1.1.1.
 - Settings tab: "Wait for me to loot" (off by default) - after a fight she also waits for your loot.
 - Commands tab: buttons for the common companion commands and your own ones, sent to the selected companion or to all of them in party chat. Macro mode makes a WoW macro from a button (it lands on your cursor for the action bar); "Make macros for all" creates them all.
 - Character tab: "walking behind <name>" when another companion leads.

@@ -26,7 +26,7 @@ for _, f in ipairs(files) do
     assert(chunk, err)
     chunk("AzerothRomance", {})
 end
-check(#files == 18, "toc lists 18 files")
+check(#files == 19, "toc lists 19 files")
 local AR = AzerothRomance
 local Protocol = AR.Protocol
 
@@ -502,30 +502,55 @@ do
     AR.state.selected = nil
 end
 
--- 10d. quest order dialog and "wait for me to loot" ---------------------------------------
+-- 10d. Quests tab: group quests, order + apply, ignore, abandon, lead -----------------------
 do
+    local stub = _G.WOWSTUB
     AR.state.selected = 2
-    serverSend({ op = "character_sheet", guid = 2, name = "Elara", level = 5, quests = {
-        { id = 101, title = "Reclaiming Sunstrider Isle", level = 2 },
-        { id = 102, title = "Unfortunate Measures", level = 3 },
-        { id = 103, title = "Windows to the Source", level = 4, complete = true } } })
-    drainRequests()
-    local O = AR.QuestOrder
-    O:Open(2)
-    check(AzerothRomanceQuestOrderFrame:IsShown() and #O.quests == 3, "quest order dialog lists her quests")
-    O.dialog.rows[1].down:Click()
-    local r = findOp(drainRequests(), "set_quest_order")
-    check(r and r.guid == 2 and r.quests[1] == 102 and r.quests[2] == 101 and r.quests[3] == 103, "Down moves a quest one place")
-    check(not O.dialog.rows[1].up:IsEnabled() and not O.dialog.rows[3].down:IsEnabled(), "no Up on the first, no Down on the last")
-    O.dialog.rows[3].lead:Click()
-    local reqs = drainRequests()
-    r = findOp(reqs, "set_quest_order")
-    local chat = findOp(reqs, "chat")
-    check(r and r.quests[1] == 103, "Lead puts the quest first")
-    check(chat and chat.text == "lead me to Windows to the Source", "Lead tells her to lead there now")
-    O.dialog.reset:Click()
-    r = findOp(drainRequests(), "set_quest_order")
-    check(r and #r.quests == 0 and not AzerothRomanceQuestOrderFrame:IsShown(), "Reset order clears it")
+    AzerothRomanceDB.ignoredQuests = nil
+    AR.UI:ShowTab("quests")
+    local f = AR.UI.tabs.quests.frame
+    local r = findOp(drainRequests(), "get_group_quests")
+    check(r ~= nil, "Quests tab asks for the group's quests")
+    serverSend({ op = "group_quests", req = r.req, levelCap = 4, companions = 2,
+        quests = {
+            { id = 101, title = "Reclaiming Sunstrider Isle", level = 1, who = { { name = "Arthas", player = true, done = true }, { name = "Elara", done = true } } },
+            { id = 102, title = "Unfortunate Measures", level = 3, who = { { name = "Elara", done = false } } },
+            { id = 103, title = "Windows to the Source", level = 2, who = { { name = "Arthas", player = true, done = false } } } },
+        available = { { id = 201, title = "Thirst Unending", level = 3, giver = "Arcanist Helion", distance = 40, direction = "north" } } })
+    check(f.rows[1].text:GetText():find("Reclaiming") and f.rows[2].text:IsShown() and not f.rows[4].text:IsShown(), "group quests listed")
+    check(f.rows[1].text:GetText():find("you %(done%)") ~= nil, "who has it and who is done is shown")
+    check(not f.apply:IsEnabled(), "Apply is off until the order changes")
+    f.rows[1].down:Click()
+    check(f.apply:IsEnabled() and f.rows[1].text:GetText():find("Unfortunate"), "Down changes the order locally")
+    check(findOp(drainRequests(), "set_group_quest_order") == nil, "nothing is sent before Apply")
+    f.apply:Click()
+    r = findOp(drainRequests(), "set_group_quest_order")
+    check(r and r.apply == true and r.quests[1] == 102 and r.quests[2] == 101 and r.quests[3] == 103, "Apply sends the new order")
+
+    -- ignore: kept per character, sent to the server
+    f.arows[1].ignore:Click()
+    r = findOp(drainRequests(), "set_ignored_quests")
+    check(r and r.quests[1] == 201, "ignoring an available quest is sent")
+    check(f.arows[1].ignore:GetText() == "Unignore", "ignored quest can be unignored")
+    check(AzerothRomanceDB.ignoredQuests[AR:CharKey()][201] ~= nil, "ignored quests are saved")
+    f.arows[1].ignore:Click()
+    r = findOp(drainRequests(), "set_ignored_quests")
+    check(r and #r.quests == 0, "unignore is sent")
+
+    -- abandon: two clicks; only for quests a companion has
+    local abandonRow
+    for i = 1, 3 do if f.rows[i].text:GetText():find("Windows") then abandonRow = f.rows[i] end end
+    check(not abandonRow.abandon:IsEnabled(), "no Abandon for a quest only you have")
+    f.rows[1].abandon:Click()
+    check(findOp(drainRequests(), "abandon_quest") == nil and f.rows[1].abandon:GetText() == "Sure?", "first Abandon click only asks")
+    f.rows[1].abandon:Click()
+    r = findOp(drainRequests(), "abandon_quest")
+    check(r and r.quest == 102, "second click abandons it for the companions")
+
+    -- lead: the selected companion leads there now
+    f.rows[2].lead:Click()
+    local chat = findOp(drainRequests(), "chat")
+    check(chat and chat.guid == 2 and chat.text == "lead me to Reclaiming Sunstrider Isle", "Lead asks the selected companion")
     AR.state.selected = nil
 end
 

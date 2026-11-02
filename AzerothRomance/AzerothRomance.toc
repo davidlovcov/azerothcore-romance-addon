@@ -19,6 +19,7 @@ UI\CompanionTab.lua
 UI\ChatTab.lua
 UI\CharacterTab.lua
 UI\CommandsTab.lua
+UI\QuestsTab.lua
 UI\PersonalityTab.lua
 UI\ProfileTab.lua
 UI\RelationshipTab.lua
