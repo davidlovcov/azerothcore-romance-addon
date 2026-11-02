@@ -7,6 +7,8 @@
 - Your settings come along if you rename the saved variables file (README, "Upgrading from AzerothRomance"); memory exports made before the rename can still be imported.
 
 ### Added
+- The window header shows who leads and where to ("Rindronor leads to "Solanian's Belongings" (260 yd south)", "You lead"), and which companion is off on an errand.
+- Character tab: spells she can learn now (with the cost at her class trainer) and soon, above the known ones; the hint says how to learn them ("!trainer learn" with the trainer targeted).
 - Simpler by default; the extras are one click away and the addon remembers what you opened:
   - Quests tab: Lead / Share / Take only; "Edit list" shows the order (Up / Down, Apply, Reset), Ignore and Abandon.
   - Settings tab: the basics (AI, party chat, wait for loot, speaking up); "Show advanced settings" for spoken commands, listening in party, model, creativity and reply length.
@@ -25,6 +27,11 @@
 - Settings tab shows the addon and the server module version, and warns when they differ.
 
 ### Fixed
+- Chat tab: a message the AI can't answer (Ollama off, or her AI conversation off) left the "thinking" dots running forever; they stop now and the reason is printed.
+- The leader line stopped updating for the whole session after one "too many requests"; only a server that doesn't know the request stops it now.
+- Character tab: says when she can't afford the spells she could learn ("she has only ...").
+- With Ollama switched off on the server, the header said "Checking Ollama..." forever; it says "AI off (commands only)" now (also on the Settings tab).
+- The logo sits centred in its circle (the figures were a little low).
 - Quests tab with a server module older than the addon: "server too old for Take" instead of "nobody can take it".
 - Quests tab: the last "Available around here" row overlapped the paging and the Refresh button; long rows are cut instead of wrapping into the next one.
 - The tab row shrinks evenly when the tabs would not fit next to the Debug tab.

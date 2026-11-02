@@ -56,6 +56,10 @@ function Q:Load(data)
     self.levelCap = tonumber(data.levelCap) or 0
     self.companions = tonumber(data.companions) or 0
     self.changed = false
+    if data.lead then
+        TC.state.lead = data.lead
+        TC:Fire("LEAD_CHANGED")
+    end
 end
 
 function Q:Request()

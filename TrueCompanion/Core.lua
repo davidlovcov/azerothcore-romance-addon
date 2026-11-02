@@ -259,7 +259,7 @@ handlers.error = function(msg)
     if msg.code ~= "protocol" and not quiet then
         TC:Print("|cffff6060" .. text .. "|r")
     end
-    if msg.code == "busy" or msg.code == "not_active" then
+    if msg.code == "busy" or msg.code == "not_active" or msg.code == "ai_disabled" then
         local g = companionGuid(msg) or TC.state.selected
         if g then
             TC.state.typing[g] = nil
@@ -382,6 +382,61 @@ function TC:Presets()
 end
 
 -- Names of the companions whose AI is active right now, in list order.
+-- ---------------------------------------------------------------- who leads
+
+-- Asks the server who leads and where to (TC.state.lead). Skipped without companions; an older server that doesn't
+-- know the request is not asked again.
+function TC:RequestLead()
+    if not self.state.connected or self.state.leadUnsupported or #self:ActiveNames() == 0 then
+        if self.state.lead and #self:ActiveNames() == 0 then
+            self.state.lead = nil
+            self:Fire("LEAD_CHANGED")
+        end
+        return
+    end
+    self:Request("get_lead", {}, function(msg)
+        if msg.op == "lead_state" then
+            self.state.lead = msg
+        elseif msg.op == "error" and msg.code == "unknown_op" then
+            -- an older server: don't ask again (a busy server, "rate_limited", is simply asked next time)
+            self.state.leadUnsupported = true
+            self.state.lead = nil
+        end
+        self:Fire("LEAD_CHANGED")
+    end)
+end
+
+local LEAD_KIND = {
+    turn_in = "to turn in quests", pick_up = "for new quests", take = "to take a quest", merchant = "to sell junk",
+}
+
+-- "Rindronor leads to "Solanian's Belongings" (260 yd south)", "You lead", or "" when unknown.
+function TC:LeadText(lead)
+    lead = lead or self.state.lead
+    if not lead then return "" end
+    local text
+    if lead.leader then
+        if lead.kind == "grind" then
+            text = ("%s leads: fighting around here"):format(lead.leader)
+        else
+            local target = lead.kind == "quest" and ("\"" .. (lead.target or "?") .. "\"") or (lead.target or "?")
+            text = ("%s leads to %s"):format(lead.leader, target)
+            if LEAD_KIND[lead.kind] then text = text .. " " .. LEAD_KIND[lead.kind] end
+            local d = tonumber(lead.distance) or -1
+            if d >= 0 then text = text .. (" (%d yd %s)"):format(d, lead.direction or "") end
+        end
+        if lead.paused then text = text .. " - waiting" end
+    elseif lead.you then
+        text = lead.fighting and "You lead - fighting here" or "You lead"
+    else
+        return ""
+    end
+    for _, e in ipairs(lead.errands or {}) do
+        text = text .. ("; %s is off to %s"):format(e.name or "?", e.target or "?")
+    end
+    return text
+end
+
 function TC:ActiveNames()
     local names = {}
     for _, c in ipairs(self.state.chars or {}) do

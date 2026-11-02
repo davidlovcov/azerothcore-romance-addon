@@ -204,9 +204,18 @@ serverSend({ op = "character_sheet", req = gs and gs.req, guid = 2, name = "Elar
     items = { { name = "Linen Cloth", count = 12, quality = 1 }, { name = "Broken Tooth", count = 3, quality = 0 } },
     gear = { { slot = 4, name = "Robe of Power", quality = 3 } },
     spells = { { id = 133, name = "Fireball" } },
+    learnable = { { id = 116, name = "Frostbolt", rank = "Rank 3", cost = 1800, level = 22 } }, learnableCost = 1800,
+    learnSoon = { { id = 2136, name = "Fire Blast", rank = "Rank 3", cost = 2000, level = 24 } },
     quests = { { title = "Kobold Camp Cleanup", level = 7, progress = "Kobold Vermin 4/10", shared = true } },
     available = { { title = "Arcane Instruction", level = 4, giver = "Khelden Bremen", distance = 120, direction = "north-east", classQuest = true } } })
 check(TC.state.sheets[2] and TC.state.sheets[2].level == 23, "sheet stored")
+do
+    local box = TC.UI.tabs.character.frame.spellsBox
+    local t = box.text:GetText()
+    check(t:find("Can learn now") and t:find("Frostbolt") and t:find("18s") and t:find("Soon") and t:find("level 24") and t:find("Fireball"),
+        "spells to learn now (with cost) and soon are listed above the known ones")
+    check(box.head:GetText():find("%+1 to learn"), "the spell list heading counts what she can learn")
+end
 stub.Update(11)
 check(findOp(drainRequests(), "get_character_sheet") ~= nil, "sheet refreshes while the tab is open")
 
@@ -751,6 +760,43 @@ do
     cpf:RefreshCard()
     check(not cpf.help:GetText():find("Getting started"), "Companion tab: the normal help once one is called")
     TC.state.chars = saved
+end
+
+-- 10f. who leads, spells to learn, Ollama off ---------------------------------------------
+do
+    check(TC:LeadText({ leader = "Rindronor", kind = "quest", target = "Solanian's Belongings", distance = 260, direction = "south" }) ==
+        "Rindronor leads to \"Solanian's Belongings\" (260 yd south)", "lead text: a quest")
+    check(TC:LeadText({ leader = "Myron", kind = "turn_in", target = "Lanthan Perilon", distance = 40, direction = "east", paused = true }) ==
+        "Myron leads to Lanthan Perilon to turn in quests (40 yd east) - waiting", "lead text: a turn-in, paused")
+    check(TC:LeadText({ you = true, errands = { { name = "Myron", kind = "merchant", target = "Jainthess Thelryn" } } }) ==
+        "You lead; Myron is off to Jainthess Thelryn", "lead text: you lead, an errand")
+    check(TC:LeadText({}) == "", "lead text: unknown")
+    check(TC:LeadText({ you = true, fighting = true }) == "You lead - fighting here", "lead text: clearing the area with you")
+
+    -- the header shows it with the companions
+    local saved = TC.state.chars
+    TC.state.chars = { { guid = 2, name = "Elara", active = true } }
+    TC.UI:Open("companion")
+    drainRequests()
+    TC:RequestLead()
+    local r = findOp(drainRequests(), "get_lead")
+    check(r ~= nil, "the window asks who leads")
+    serverSend({ op = "lead_state", req = r.req, leader = "Elara", kind = "quest", target = "Thirst Unending", distance = 30, direction = "north" })
+    check(TC.UI.subtitle:GetText():find("Elara leads to \"Thirst Unending\""), "the header shows who leads and where to")
+    -- no companion: not asked
+    TC.state.chars = {}
+    drainRequests()
+    TC:RequestLead()
+    check(findOp(drainRequests(), "get_lead") == nil and TC.state.lead == nil, "without companions nobody is asked")
+    TC.state.chars = saved
+
+    -- Ollama switched off on the server: the header says so instead of "Checking Ollama..."
+    local feat = TC.state.hello.features
+    feat.ollama = false
+    TC.UI:RefreshStatus()
+    check(TC.UI.lightText:GetText() == "AI off (commands only)", "Ollama off: the header says AI off")
+    feat.ollama = true
+    TC.UI:RefreshStatus()
 end
 
 -- 11. no unexpected UI errors -------------------------------------------------------

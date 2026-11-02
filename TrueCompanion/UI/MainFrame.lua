@@ -121,6 +121,8 @@ function UI:Build()
     title:SetPoint("LEFT", icon, "RIGHT", 8, 0)
     self.subtitle = W.Label(f, "", 11, W.MUTED)
     self.subtitle:SetPoint("LEFT", title, "RIGHT", 12, -1)
+    self.subtitle:SetWidth(430)
+    self.subtitle:SetHeight(14)   -- one line; a long one is cut
 
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", -4, -4)
@@ -207,6 +209,15 @@ function UI:Build()
     end)
 
     TC:On("STATUS_CHANGED", function() UI:RefreshStatus() end)
+    TC:On("LEAD_CHANGED", function() UI:RefreshStatus() end)
+    -- who leads and where to, while the window is open
+    local leadTimer = 0
+    f:SetScript("OnUpdate", function(_, dt)
+        leadTimer = leadTimer - dt
+        if leadTimer > 0 then return end
+        leadTimer = 4
+        TC:RequestLead()
+    end)
     TC:On("HELLO", function() UI:RefreshStatus() end)
     TC:On("SELECTION_CHANGED", function() UI:RefreshCompanionLabel() end)
     TC:On("CHARS_CHANGED", function() UI:RefreshCompanionLabel() end)
@@ -234,6 +245,10 @@ function UI:RefreshStatus()
     elseif s and s.enabled == false then
         self.light:SetVertexColor(0.8, 0.2, 0.2)
         self.lightText:SetText("Module disabled")
+    elseif TC.state.hello and TC.state.hello.features and TC.state.hello.features.ollama == false then
+        -- switched off on the server: not an error, and nothing is being checked
+        self.light:SetVertexColor(0.5, 0.5, 0.55)
+        self.lightText:SetText("AI off (commands only)")
     elseif online then
         self.light:SetVertexColor(0.3, 0.9, 0.4)
         self.lightText:SetText("Ollama online")
@@ -248,7 +263,8 @@ function UI:RefreshStatus()
     -- a failed call must not look like a switch.
     local names = TC:ActiveNames()
     if #names > 0 then
-        self.subtitle:SetText(("with %s"):format(table.concat(names, ", ")))
+        local lead = TC:LeadText()
+        self.subtitle:SetText(("with %s%s"):format(table.concat(names, ", "), lead ~= "" and ("  |cffffd100·|r  " .. lead) or ""))
     else
         self.subtitle:SetText("")
     end

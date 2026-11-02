@@ -135,7 +135,8 @@ local function build(f)
         if srv and srv ~= TC.version then ver = ver .. " |cffff6060(differs from the addon)|r" end
         serverText:SetText(ver .. ("\nModule: %s\nOllama: %s %s\nDefault model: %s\nInstalled models: %d\nProactive chat: %s\nSpoken commands: %s\nPlayerbots: %s"):format(
             st.enabled == false and "|cffff6060disabled|r" or "|cff60ff60enabled|r",
-            o.online and "|cff60ff60online|r" or "|cffff6060offline|r", o.version or "",
+            feat.ollama == false and "|cffaaaaaaoff on this server (commands only)|r" or o.online and "|cff60ff60online|r" or "|cffff6060offline|r",
+            feat.ollama == false and "" or (o.version or ""),
             tostring(st.model or "?"), #(o.models or {}),
             feat.proactive == false and "disabled by server" or "allowed",
             feat.naturalCommands == false and "disabled by server" or "allowed",

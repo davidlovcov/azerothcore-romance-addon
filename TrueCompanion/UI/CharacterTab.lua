@@ -43,6 +43,7 @@ local function makeList(parent, title, w, h)
     text:SetJustifyH("LEFT")
     text:SetJustifyV("TOP")
     box.head = head
+    box.text = text
     function box:SetLines(lines, count)
         text:SetText(#lines > 0 and table.concat(lines, "\n") or "|cff888888(nothing)|r")
         child:SetHeight(math.max(h - 30, (#lines + 1) * 14))
@@ -68,11 +69,13 @@ local function build(f)
     quests:SetPoint("TOPLEFT", 254, -52)
     local spells = makeList(f, "Spells & abilities", 248, 196)
     spells:SetPoint("TOPLEFT", 508, -52)
+    f.spellsBox = spells
     local gear = makeList(f, "Equipped", 502, 150)
     gear:SetPoint("TOPLEFT", 0, -252)
 
     local hint = W.Label(f, "Ask in chat: \"what's in your bags?\", \"give me your linen cloth\", \"share your quests\", " ..
-        "\"lead the way\"... See COMMANDS.md for the full list.", 10, W.MUTED)
+        "\"lead the way\"... See COMMANDS.md for the full list.\n\nNew spells: target her class trainer and whisper her " ..
+        "\"!trainer learn\".", 10, W.MUTED)
     hint:SetPoint("TOPLEFT", 508, -256)
     hint:SetWidth(248)
 
@@ -152,9 +155,25 @@ local function build(f)
         end
         quests:SetLines(lines, #(sheet.quests or {}))
 
+        -- what her class trainer can teach her now (and soon), above what she knows
         lines = {}
+        local function spellName(s) return (s.name or "?") .. ((s.rank or "") ~= "" and (" |cff888888(" .. s.rank .. ")|r") or "") end
+        if sheet.learnable and #sheet.learnable > 0 then
+            local cost = tonumber(sheet.learnableCost) or 0
+            local short = sheet.money and cost > (tonumber(sheet.money) or 0)
+            table.insert(lines, ("|cff60ff60Can learn now|r |cffaaaaaa(%s at her class trainer%s)|r"):format(money(cost),
+                short and ("; |cffff8040she has only|r " .. money(sheet.money)) or ""))
+            for _, s in ipairs(sheet.learnable) do table.insert(lines, "  " .. spellName(s)) end
+        end
+        if sheet.learnSoon and #sheet.learnSoon > 0 then
+            table.insert(lines, "|cffffd100Soon|r")
+            for _, s in ipairs(sheet.learnSoon) do table.insert(lines, ("  %s |cff888888level %d|r"):format(spellName(s), s.level or 0)) end
+        end
+        if #lines > 0 then table.insert(lines, "|cffffd100Known|r") end
         for _, s in ipairs(sheet.spells or {}) do table.insert(lines, s.name or "?") end
         spells:SetLines(lines, #(sheet.spells or {}))
+        spells.head:SetText(("Spells & abilities (%d)%s"):format(#(sheet.spells or {}),
+            sheet.learnable and #sheet.learnable > 0 and (" |cff60ff60+%d to learn|r"):format(#sheet.learnable) or ""))
 
         lines = {}
         for _, it in ipairs(sheet.gear or {}) do
