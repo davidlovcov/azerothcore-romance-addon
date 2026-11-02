@@ -29,6 +29,7 @@
 - Settings tab shows the addon and the server module version, and warns when they differ.
 
 ### Fixed
+- Quests tab: moving a quest while a refresh was on its way could bring back the old order (and the edit counted as applied). An answer to a request sent before the edit or before "Apply" now only updates the quests' status; the order stays.
 - "is thinking..." could stay on forever when the server's "typing off" got lost (server restart, reload) or after a line that went to Playerbots. It is cleared by every error that means no answer is coming and expires on its own after 100 seconds; the Commands, Quests and Character tabs use the same indicator.
 - Numbers sent to the server: integers above 2^31 could wrap in the 32-bit Windows client, and fractions were rounded to 6 digits.
 - `/tc status` showed a stray space when the server reported no Ollama version.

@@ -688,6 +688,43 @@ do
         available = { { id = 201, title = "Thirst Unending", level = 3, giver = "Arcanist Helion", distance = 40, direction = "north" } } })
     f:Render()
     check(arow("Thirst").text:GetText():find("server too old") and not arow("Thirst").take:IsEnabled(), "old server: Take explains why it is off")
+
+    -- an edit made while a refresh is on its way is not undone by its answer
+    local function ids() local out = {} for _, q in ipairs(Q.quests) do out[#out + 1] = q.id end return table.concat(out, ",") end
+    local function questsMsg(list, extra)
+        local m = { op = "group_quests", levelCap = 4, companions = 1, quests = {} }
+        for _, q in ipairs(list) do m.quests[#m.quests + 1] = { id = q[1], title = q[2], level = 3, who = {}, status = q[3] } end
+        for k, v in pairs(extra or {}) do m[k] = v end
+        return m
+    end
+    Q.changed = false
+    drainRequests()
+    Q:Request()
+    local pending = findOp(drainRequests(), "get_group_quests")
+    Q:Load(questsMsg({ { 1, "First" }, { 2, "Second" } }))
+    Q:Move(2, -1)                                  -- Second above First, not applied yet
+    check(ids() == "2,1" and Q.changed, "moved quest 2 above quest 1")
+    serverSend(questsMsg({ { 1, "First" }, { 2, "Second", "ready" }, { 3, "Third" } }, { req = pending.req }))
+    check(ids() == "2,1,3", "an older refresh keeps the unsaved order (new quests go to the end)")
+    check(Q.changed, "the edit is still marked as not applied")
+    check(Q.quests[1].status == "ready", "... and its quest status is updated")
+    -- a quest that disappears while editing just leaves the list
+    Q:Load(questsMsg({ { 2, "Second" }, { 3, "Third" } }))
+    check(ids() == "2,3" and Q.changed, "a quest gone while editing leaves the list, the order stays")
+    -- Apply while a refresh is on its way: that old answer doesn't bring back the old order
+    Q:Request()
+    pending = findOp(drainRequests(), "get_group_quests")
+    Q:Move(2, -1)                                  -- 3,2
+    Q:Apply()
+    local reqs2 = drainRequests()
+    local applied = findOp(reqs2, "set_group_quest_order")
+    check(applied and applied.quests[1] == 3 and applied.quests[2] == 2, "Apply sends the new order")
+    serverSend(questsMsg({ { 2, "Second" }, { 3, "Third" } }, { req = pending.req }))
+    check(ids() == "3,2", "an answer older than Apply doesn't restore the old order")
+    serverSend({ op = "ack", req = applied.req })
+    local after = findOp(drainRequests(), "get_group_quests")
+    serverSend(questsMsg({ { 3, "Third" }, { 2, "Second" } }, { req = after.req }))
+    check(ids() == "3,2" and not Q.changed, "after Apply the server's order is taken again")
     TC.state.selected = nil
 end
 

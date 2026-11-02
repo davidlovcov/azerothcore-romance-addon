@@ -49,13 +49,39 @@ TC:On("HELLO", function() Q:SendIgnored() end)
 
 -- ---------------------------------------------------------------- data
 
-function Q:Load(data)
-    self.quests = {}
-    for _, q in ipairs(data.quests or {}) do self.quests[#self.quests + 1] = q end
+-- Requests are numbered; `orderAt` is the number of the last request sent before the order changed here (a move,
+-- Apply or Reset). An answer to an older request carries an out-of-date order: only its quest status is taken.
+Q.seq, Q.orderAt = 0, 0
+
+-- Takes the server's quest data but keeps the local order (unsaved edits, or an Apply still on its way):
+-- quests keep their place with fresh status, new ones go to the end, finished or dropped ones disappear.
+function Q:Merge(data)
+    local fresh = {}
+    for _, q in ipairs(data.quests or {}) do fresh[q.id] = q end
+    local merged, seen = {}, {}
+    for _, q in ipairs(self.quests) do
+        if fresh[q.id] then
+            merged[#merged + 1] = fresh[q.id]
+            seen[q.id] = true
+        end
+    end
+    for _, q in ipairs(data.quests or {}) do
+        if not seen[q.id] then merged[#merged + 1] = q end
+    end
+    self.quests = merged
+end
+
+function Q:Load(data, seq)
+    local stale = seq and seq <= self.orderAt
+    if self.changed or stale then
+        self:Merge(data)
+    else
+        self.quests = {}
+        for _, q in ipairs(data.quests or {}) do self.quests[#self.quests + 1] = q end
+    end
     self.available = data.available or {}
     self.levelCap = tonumber(data.levelCap) or 0
     self.companions = tonumber(data.companions) or 0
-    self.changed = false
     if data.lead then
         TC.state.lead = data.lead
         TC:Fire("LEAD_CHANGED")
@@ -63,9 +89,11 @@ function Q:Load(data)
 end
 
 function Q:Request()
+    self.seq = self.seq + 1
+    local mine = self.seq
     TC:Request("get_group_quests", {}, function(msg)
         if msg.op == "group_quests" then
-            Q:Load(msg)
+            Q:Load(msg, mine)
             if Q.frame and Q.frame:IsShown() then Q.frame:Render() end
         end
     end)
@@ -76,17 +104,20 @@ function Q:Move(i, delta)
     if j < 1 or j > #self.quests then return end
     self.quests[i], self.quests[j] = self.quests[j], self.quests[i]
     self.changed = true
+    self.orderAt = self.seq   -- answers to requests already sent must not undo this
 end
 
 function Q:Apply()
     local ids = {}
     for _, q in ipairs(self.quests) do ids[#ids + 1] = q.id end
     self.changed = false
+    self.orderAt = self.seq
     TC:Request("set_group_quest_order", { quests = ids, apply = true }, function() Q:Request() end)
 end
 
 function Q:ResetOrder()
     self.changed = false
+    self.orderAt = self.seq
     TC:Request("set_group_quest_order", { quests = {}, apply = false }, function() Q:Request() end)
 end
 
