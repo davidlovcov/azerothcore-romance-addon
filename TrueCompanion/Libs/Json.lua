@@ -1,18 +1,18 @@
 --[[
-  AzerothRomance - JSON encode/decode for WoW 3.3.5a (Lua 5.1)
+  TrueCompanion - JSON encode/decode for WoW 3.3.5a (Lua 5.1)
   Licensed under the GNU GPL v2 or later.
 
   * Objects are Lua tables with string keys, arrays are tables with 1..n keys.
-  * Empty tables encode as {} unless marked with AR.Json.Array({}).
+  * Empty tables encode as {} unless marked with TC.Json.Array({}).
   * '|' is always written as |: the WoW client treats '|' as an escape
     sequence in chat/addon text.
 ]]
 
-local AR = _G.AzerothRomance or {}
-_G.AzerothRomance = AR
+local TC = _G.TrueCompanion or {}
+_G.TrueCompanion = TC
 
 local Json = {}
-AR.Json = Json
+TC.Json = Json
 
 local strbyte, strchar, strsub, strfind, strformat = string.byte, string.char, string.sub, string.find, string.format
 local tconcat, tinsert = table.concat, table.insert

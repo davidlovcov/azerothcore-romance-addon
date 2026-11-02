@@ -1,5 +1,5 @@
 --[[
-  AzerothRomance - core: saved variables, server communication, state, events.
+  TrueCompanion - core: saved variables, server communication, state, events.
   Licensed under the GNU GPL v2 or later.
 
   Everything authoritative (characters, ownership, relationship values, memories,
@@ -7,11 +7,11 @@
   requests; the server validates every request against the logged-in character.
 ]]
 
-local AR = _G.AzerothRomance
-local Protocol = AR.Protocol
+local TC = _G.TrueCompanion
+local Protocol = TC.Protocol
 
-AR.version = "1.1.1-dev"
-AR.state = {
+TC.version = "2.0.0-dev"
+TC.state = {
     connected = false,
     hello = nil,
     status = nil,
@@ -31,12 +31,12 @@ AR.state = {
 
 local listeners = {}
 
-function AR:On(event, fn)
+function TC:On(event, fn)
     listeners[event] = listeners[event] or {}
     table.insert(listeners[event], fn)
 end
 
-function AR:Fire(event, ...)
+function TC:Fire(event, ...)
     local list = listeners[event]
     if not list then return end
     for _, fn in ipairs(list) do
@@ -45,15 +45,15 @@ function AR:Fire(event, ...)
     end
 end
 
-function AR:LogError(where, err)
+function TC:LogError(where, err)
     local e = self.state.errors
     table.insert(e, 1, { t = time(), where = tostring(where), msg = tostring(err) })
     while #e > 30 do table.remove(e) end
     self:Fire("ERRORS_CHANGED")
 end
 
-function AR:Print(msg)
-    DEFAULT_CHAT_FRAME:AddMessage("|cffff99cc[Romance]|r " .. tostring(msg))
+function TC:Print(msg)
+    DEFAULT_CHAT_FRAME:AddMessage("|cfff2e6c8[True Companion]|r " .. tostring(msg))
 end
 
 -- ---------------------------------------------------------------- saved variables
@@ -78,20 +78,20 @@ local function copyDefaults(dst, src)
     end
 end
 
-function AR:CharKey()
+function TC:CharKey()
     return (GetRealmName() or "?") .. "-" .. (UnitName("player") or "?")
 end
 
-function AR:ChatLog(guid)
+function TC:ChatLog(guid)
     local key = self:CharKey()
-    local db = AzerothRomanceDB.chat
+    local db = TrueCompanionDB.chat
     db[key] = db[key] or {}
     local k = tostring(guid)
     db[key][k] = db[key][k] or {}
     return db[key][k]
 end
 
-function AR:AddChatLine(guid, from, text, ts)
+function TC:AddChatLine(guid, from, text, ts)
     if not guid or not text then return end
     local log = self:ChatLog(guid)
     local last = log[#log]
@@ -112,9 +112,9 @@ local function rawSend(chunk)
     SendAddonMessage(Protocol.PREFIX, chunk, "WHISPER", UnitName("player"))
 end
 
-AR.sender = Protocol.NewSender(rawSend)
+TC.sender = Protocol.NewSender(rawSend)
 
-function AR:Request(op, payload, cb)
+function TC:Request(op, payload, cb)
     payload = payload or {}
     payload.op = op
     reqCounter = reqCounter + 1
@@ -132,98 +132,98 @@ end
 local handlers = {}
 
 handlers.hello = function(msg)
-    AR.state.connected = true
-    AR.state.hello = msg
-    AR.state.presets = msg.presets or {}
-    AR.state.status = msg.status
-    AR:Fire("HELLO", msg)
-    AR:Fire("STATUS_CHANGED")
+    TC.state.connected = true
+    TC.state.hello = msg
+    TC.state.presets = msg.presets or {}
+    TC.state.status = msg.status
+    TC:Fire("HELLO", msg)
+    TC:Fire("STATUS_CHANGED")
 end
 
 handlers.chars = function(msg)
-    AR.state.chars = msg.chars or {}
-    AR.state.maxActive = msg.maxActive
-    AR:Fire("CHARS_CHANGED")
-    AR:Fire("STATUS_CHANGED")
+    TC.state.chars = msg.chars or {}
+    TC.state.maxActive = msg.maxActive
+    TC:Fire("CHARS_CHANGED")
+    TC:Fire("STATUS_CHANGED")
 end
 
 handlers.chars_changed = function()
-    AR:Request("list_chars")
-    if AR.state.selected then AR:Request("get_companion", { guid = AR.state.selected }) end
+    TC:Request("list_chars")
+    if TC.state.selected then TC:Request("get_companion", { guid = TC.state.selected }) end
 end
 
 handlers.companion = function(msg)
     local g = companionGuid(msg)
     if not g then return end
-    AR.state.companions[g] = msg
-    if msg.relationship then AR.state.relationship[g] = msg.relationship end
-    AR:Fire("COMPANION_CHANGED", g)
+    TC.state.companions[g] = msg
+    if msg.relationship then TC.state.relationship[g] = msg.relationship end
+    TC:Fire("COMPANION_CHANGED", g)
 end
 
 handlers.companion_active = function(msg)
-    AR:Request("list_chars")
-    AR:Fire("STATUS_CHANGED")
+    TC:Request("list_chars")
+    TC:Fire("STATUS_CHANGED")
 end
 
 handlers.relationship = function(msg)
     local g = companionGuid(msg)
     if not g then return end
-    AR.state.relationship[g] = msg
-    AR:Fire("RELATIONSHIP_CHANGED", g)
+    TC.state.relationship[g] = msg
+    TC:Fire("RELATIONSHIP_CHANGED", g)
 end
 
 handlers.milestone = function(msg)
-    AR:Print(("|cffffd100%s|r"):format(msg.label or "A new chapter begins."))
+    TC:Print(("|cffffd100%s|r"):format(msg.label or "A new chapter begins."))
     PlaySound("LEVELUPSOUND")
-    AR:Fire("RELATIONSHIP_CHANGED", companionGuid(msg))
+    TC:Fire("RELATIONSHIP_CHANGED", companionGuid(msg))
 end
 
 handlers.chat_msg = function(msg)
     local g = companionGuid(msg)
-    AR:AddChatLine(g, msg.from, msg.text, msg.ts)
+    TC:AddChatLine(g, msg.from, msg.text, msg.ts)
     if msg.from == "companion" then
-        if AR.ChatFilter then AR.ChatFilter:Expect(g, msg.text) end
-        AR.state.typing[g] = nil
-        AR:Fire("TYPING_CHANGED", g)
+        if TC.ChatFilter then TC.ChatFilter:Expect(g, msg.text) end
+        TC.state.typing[g] = nil
+        TC:Fire("TYPING_CHANGED", g)
     end
 end
 
 handlers.bot_feedback = function(msg)
-    if AR.ChatFilter then AR.ChatFilter:Allow(msg.name) end
+    if TC.ChatFilter then TC.ChatFilter:Allow(msg.name) end
 end
 
 handlers.typing = function(msg)
     local g = companionGuid(msg)
-    AR.state.typing[g] = msg.on and true or nil
-    AR:Fire("TYPING_CHANGED", g)
+    TC.state.typing[g] = msg.on and true or nil
+    TC:Fire("TYPING_CHANGED", g)
 end
 
 handlers.status = function(msg)
-    AR.state.status = msg
-    AR:Fire("STATUS_CHANGED")
+    TC.state.status = msg
+    TC:Fire("STATUS_CHANGED")
 end
 
 handlers.profile = function(msg)
-    AR.state.profile = msg.profile or {}
-    AR.state.profileIsDefault = msg.accountDefault and true or false
-    AR:Fire("PROFILE_CHANGED")
+    TC.state.profile = msg.profile or {}
+    TC.state.profileIsDefault = msg.accountDefault and true or false
+    TC:Fire("PROFILE_CHANGED")
 end
 
 handlers.character_sheet = function(msg)
     local g = companionGuid(msg)
     if not g then return end
-    AR.state.sheets[g] = msg
-    AR:Fire("SHEET_CHANGED", g)
+    TC.state.sheets[g] = msg
+    TC:Fire("SHEET_CHANGED", g)
 end
 
 handlers.presets = function(msg)
-    AR.state.presets = msg.presets or AR.state.presets
-    AR:Fire("PRESETS_CHANGED")
+    TC.state.presets = msg.presets or TC.state.presets
+    TC:Fire("PRESETS_CHANGED")
 end
 
 handlers.models = function(msg)
-    AR.state.models = msg
-    AR:Fire("MODELS_CHANGED")
+    TC.state.models = msg
+    TC:Fire("MODELS_CHANGED")
 end
 
 -- memory_changed arrives once per changed memory (many at once after an import or a tidy-up): every tab that
@@ -232,12 +232,12 @@ local memoryDirty = {}   -- guid (0 = unknown) -> GetTime() when MEMORY_CHANGED 
 local memoryTimer = CreateFrame("Frame")
 memoryTimer:SetScript("OnUpdate", function()
     if not next(memoryDirty) then return end
-    if AR.Transfer and AR.Transfer:Busy() then return end
+    if TC.Transfer and TC.Transfer:Busy() then return end
     local now = GetTime()
     for g, at in pairs(memoryDirty) do
         if now >= at then
             memoryDirty[g] = nil
-            AR:Fire("MEMORY_CHANGED", g ~= 0 and g or nil)
+            TC:Fire("MEMORY_CHANGED", g ~= 0 and g or nil)
         end
     end
 end)
@@ -250,20 +250,20 @@ end
 
 handlers.error = function(msg)
     -- a running import / export resends a rate-limited step by itself: nothing to report
-    if msg.code == "rate_limited" and AR.Transfer and AR.Transfer:Busy() then return end
+    if msg.code == "rate_limited" and TC.Transfer and TC.Transfer:Busy() then return end
     local text = (msg.message and msg.message ~= "") and msg.message or msg.code or "unknown error"
-    AR:LogError(msg["for"] or "server", (msg.code or "") .. ": " .. text)
+    TC:LogError(msg["for"] or "server", (msg.code or "") .. ": " .. text)
     -- "Too many requests" once in a while, not once per rejected request
-    local quiet = msg.code == "rate_limited" and AR.lastRateLimitNote and GetTime() - AR.lastRateLimitNote < 10
-    if msg.code == "rate_limited" and not quiet then AR.lastRateLimitNote = GetTime() end
+    local quiet = msg.code == "rate_limited" and TC.lastRateLimitNote and GetTime() - TC.lastRateLimitNote < 10
+    if msg.code == "rate_limited" and not quiet then TC.lastRateLimitNote = GetTime() end
     if msg.code ~= "protocol" and not quiet then
-        AR:Print("|cffff6060" .. text .. "|r")
+        TC:Print("|cffff6060" .. text .. "|r")
     end
     if msg.code == "busy" or msg.code == "not_active" then
-        local g = companionGuid(msg) or AR.state.selected
+        local g = companionGuid(msg) or TC.state.selected
         if g then
-            AR.state.typing[g] = nil
-            AR:Fire("TYPING_CHANGED", g)
+            TC.state.typing[g] = nil
+            TC:Fire("TYPING_CHANGED", g)
         end
     end
 end
@@ -274,19 +274,19 @@ local function dispatch(msg)
         local p = pending[req]
         pending[req] = nil
         local ok, err = pcall(p.cb, msg)
-        if not ok then AR:LogError("cb:" .. tostring(p.op), err) end
+        if not ok then TC:LogError("cb:" .. tostring(p.op), err) end
     end
     local h = handlers[msg.op]
     if h then
         local ok, err = pcall(h, msg)
-        if not ok then AR:LogError("handler:" .. msg.op, err) end
+        if not ok then TC:LogError("handler:" .. msg.op, err) end
     end
-    AR:Fire("MESSAGE", msg)
+    TC:Fire("MESSAGE", msg)
 end
 
 -- ---------------------------------------------------------------- event frame
 
-local frame = CreateFrame("Frame", "AzerothRomanceEventFrame")
+local frame = CreateFrame("Frame", "TrueCompanionEventFrame")
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("CHAT_MSG_ADDON")
@@ -296,15 +296,19 @@ local helloRetry = 0
 local helloTimer = 0
 
 frame:SetScript("OnEvent", function(_, event, a1, a2, a3, a4)
-    if event == "ADDON_LOADED" and a1 == "AzerothRomance" then
-        AzerothRomanceDB = AzerothRomanceDB or {}
-        copyDefaults(AzerothRomanceDB, defaults)
-        AR.db = AzerothRomanceDB
-        AR:Fire("DB_READY")
+    if event == "ADDON_LOADED" and a1 == "TrueCompanion" then
+        -- settings from before the rename (AzerothRomance): taken over once, if the old saved variables file was
+        -- renamed to TrueCompanion.lua (see the README)
+        if TrueCompanionDB == nil and type(AzerothRomanceDB) == "table" then TrueCompanionDB = AzerothRomanceDB end
+        AzerothRomanceDB = nil
+        TrueCompanionDB = TrueCompanionDB or {}
+        copyDefaults(TrueCompanionDB, defaults)
+        TC.db = TrueCompanionDB
+        TC:Fire("DB_READY")
     elseif event == "PLAYER_LOGIN" then
         helloRetry = 3
         helloTimer = 2
-        AR:Fire("LOGIN")
+        TC:Fire("LOGIN")
     elseif event == "CHAT_MSG_ADDON" then
         -- a1 prefix, a2 message, a3 distribution, a4 sender
         if a1 ~= Protocol.PREFIX or a3 ~= "WHISPER" or a4 ~= UnitName("player") then return end
@@ -312,19 +316,19 @@ frame:SetScript("OnEvent", function(_, event, a1, a2, a3, a4)
         if msg then
             dispatch(msg)
         elseif msg == false then
-            AR:LogError("protocol", err)
+            TC:LogError("protocol", err)
         end
     end
 end)
 
 frame:SetScript("OnUpdate", function(_, elapsed)
-    AR.sender:Update(elapsed)
-    if helloRetry > 0 and not AR.state.connected then
+    TC.sender:Update(elapsed)
+    if helloRetry > 0 and not TC.state.connected then
         helloTimer = helloTimer - elapsed
         if helloTimer <= 0 then
             helloRetry = helloRetry - 1
             helloTimer = 5
-            AR:Request("hello", { version = AR.version, protocol = Protocol.VERSION })
+            TC:Request("hello", { version = TC.version, protocol = Protocol.VERSION })
         end
     end
     -- drop stale callbacks
@@ -336,10 +340,10 @@ end)
 
 -- ---------------------------------------------------------------- helpers shared by the UI
 
-AR.CLASS_TOKENS = { [1] = "WARRIOR", [2] = "PALADIN", [3] = "HUNTER", [4] = "ROGUE", [5] = "PRIEST",
+TC.CLASS_TOKENS = { [1] = "WARRIOR", [2] = "PALADIN", [3] = "HUNTER", [4] = "ROGUE", [5] = "PRIEST",
     [6] = "DEATHKNIGHT", [7] = "SHAMAN", [8] = "MAGE", [9] = "WARLOCK", [11] = "DRUID" }
 
-AR.STATUS_INFO = {
+TC.STATUS_INFO = {
     available            = { label = "Available",             color = { 0.45, 0.85, 0.45 }, enabled = true },
     in_party             = { label = "In your party",         color = { 1.00, 0.82, 0.30 }, enabled = true },
     summoned             = { label = "Already summoned",      color = { 0.95, 0.75, 0.35 }, enabled = true },
@@ -351,7 +355,7 @@ AR.STATUS_INFO = {
 }
 
 -- Status of a character entry, including estrangement (she left you / came back cold).
-function AR:CharStatus(c)
+function TC:CharStatus(c)
     if not c then return self.STATUS_INFO.unavailable end
     local backAt = tonumber(c.estrangedUntil)
     if backAt and backAt > 0 then
@@ -365,7 +369,7 @@ function AR:CharStatus(c)
     return st
 end
 
-function AR:ClassColor(classId)
+function TC:ClassColor(classId)
     local token = self.CLASS_TOKENS[tonumber(classId) or 0]
     local c = token and RAID_CLASS_COLORS and RAID_CLASS_COLORS[token]
     if c then return c.r, c.g, c.b end
@@ -373,12 +377,12 @@ function AR:ClassColor(classId)
 end
 
 -- Built-in presets plus the account's custom ones (custom = true).
-function AR:Presets()
+function TC:Presets()
     return self.state.presets or (self.state.hello and self.state.hello.presets) or {}
 end
 
 -- Names of the companions whose AI is active right now, in list order.
-function AR:ActiveNames()
+function TC:ActiveNames()
     local names = {}
     for _, c in ipairs(self.state.chars or {}) do
         if c.active then table.insert(names, c.name) end
@@ -387,23 +391,23 @@ function AR:ActiveNames()
 end
 
 -- Readable text for a failed ack: the server sends `message`; older servers only `code`.
-function AR:AckText(msg)
+function TC:AckText(msg)
     if msg.message and msg.message ~= "" then return msg.message end
     return tostring(msg.code or "unknown error")
 end
 
-function AR:FindChar(guid)
+function TC:FindChar(guid)
     for _, c in ipairs(self.state.chars) do
         if tonumber(c.guid) == tonumber(guid) then return c end
     end
 end
 
-function AR:Selected()
+function TC:Selected()
     local g = self.state.selected
     return g, g and self.state.companions[g], g and self:FindChar(g)
 end
 
-function AR:Select(guid)
+function TC:Select(guid)
     guid = tonumber(guid)
     self.state.selected = guid
     if guid then
@@ -422,34 +426,34 @@ function AR:Select(guid)
     self:Fire("SELECTION_CHANGED", guid)
 end
 
-function AR:OllamaOnline()
+function TC:OllamaOnline()
     local s = self.state.status
     return s and s.ollama and s.ollama.online
 end
 
 -- ---------------------------------------------------------------- slash command
 
-SLASH_AZEROTHROMANCE1 = "/romance"
-SLASH_AZEROTHROMANCE2 = "/ar"
-SlashCmdList["AZEROTHROMANCE"] = function(input)
+SLASH_TRUECOMPANION1 = "/tc"
+SLASH_TRUECOMPANION2 = "/companion"
+SlashCmdList["TRUECOMPANION"] = function(input)
     input = (input or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
     if input == "status" then
-        AR:Request("get_status", {}, function(msg)
+        TC:Request("get_status", {}, function(msg)
             local o = msg.ollama or {}
-            AR:Print(("Module %s, Ollama %s%s, model %s"):format(msg.enabled and "on" or "off",
+            TC:Print(("Module %s, Ollama %s%s, model %s"):format(msg.enabled and "on" or "off",
                 o.online and "|cff60ff60online|r" or "|cffff6060offline|r", o.version ~= "" and (" " .. (o.version or "")) or "",
                 tostring(msg.model)))
         end)
     elseif input == "reset window" then
-        AR.db.window = { point = "CENTER", x = 0, y = 0 }
-        if AR.UI and AR.UI.main then
-            AR.UI.main:ClearAllPoints()
-            AR.UI.main:SetPoint("CENTER")
+        TC.db.window = { point = "CENTER", x = 0, y = 0 }
+        if TC.UI and TC.UI.main then
+            TC.UI.main:ClearAllPoints()
+            TC.UI.main:SetPoint("CENTER")
         end
     elseif input == "minimap" then
-        AR.db.minimap.hide = not AR.db.minimap.hide
-        AR:Fire("MINIMAP_TOGGLE")
+        TC.db.minimap.hide = not TC.db.minimap.hide
+        TC:Fire("MINIMAP_TOGGLE")
     else
-        if AR.UI then AR.UI:Toggle() end
+        if TC.UI then TC.UI:Toggle() end
     end
 end

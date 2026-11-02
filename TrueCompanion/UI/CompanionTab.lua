@@ -1,10 +1,10 @@
 --[[
-  AzerothRomance - Companion tab: account characters, status, summon/return.
+  TrueCompanion - Companion tab: account characters, status, summon/return.
 ]]
 
-local AR = _G.AzerothRomance
-local W = AR.W
-local UI = AR.UI
+local TC = _G.TrueCompanion
+local W = TC.W
+local UI = TC.UI
 
 local ROWS = 9
 local ROW_H = 38
@@ -15,7 +15,7 @@ local function build(f)
     list:SetPoint("TOPLEFT", 0, 0)
     local head = W.Heading(list, "Your characters")
     head:SetPoint("TOPLEFT", 12, -10)
-    local refresh = W.Button(list, "Refresh", 70, 20, function() AR:Request("list_chars") end)
+    local refresh = W.Button(list, "Refresh", 70, 20, function() TC:Request("list_chars") end)
     refresh:SetPoint("TOPRIGHT", -10, -6)
 
     local empty = W.Label(list, "", 11, W.MUTED)
@@ -50,13 +50,13 @@ local function build(f)
         r.stage:SetPoint("RIGHT", -6, -8)
         r.stage:SetJustifyH("RIGHT")
         r:SetScript("OnClick", function(self)
-            if self.char then AR:Select(self.char.guid) end
+            if self.char then TC:Select(self.char.guid) end
         end)
         r:SetScript("OnEnter", function(self)
             if not self.char then return end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(self.char.name, 1, 0.82, 0.25)
-            local st = AR:CharStatus(self.char)
+            local st = TC:CharStatus(self.char)
             GameTooltip:AddLine(st.label, st.color[1], st.color[2], st.color[3])
             if self.char.reason and self.char.reason ~= "" then GameTooltip:AddLine(self.char.reason, 1, 1, 1, true) end
             if self.char.linked then GameTooltip:AddLine("From a linked account", 0.7, 0.7, 0.7) end
@@ -67,16 +67,16 @@ local function build(f)
     end
     list:EnableMouseWheel(true)
     list:SetScript("OnMouseWheel", function(_, delta)
-        local n = #AR.state.chars
+        local n = #TC.state.chars
         offset = math.max(0, math.min(math.max(0, n - ROWS), offset - delta))
         f:RefreshList()
     end)
 
     function f:RefreshList()
-        local chars = AR.state.chars
+        local chars = TC.state.chars
         UI.SetShown(empty, #chars == 0)
-        if not AR.state.connected then
-            empty:SetText("Waiting for the server...\nIs mod-romance installed on this realm?")
+        if not TC.state.connected then
+            empty:SetText("Waiting for the server...\nIs mod-true-companion installed on this realm?")
         else
             empty:SetText("No other characters on your account.\nCreate some characters to use them as companions.")
         end
@@ -88,9 +88,9 @@ local function build(f)
                 r:Hide()
             else
                 r:Show()
-                local st = AR:CharStatus(c)
+                local st = TC:CharStatus(c)
                 W.SetClassIcon(r.icon, c.class)
-                local cr, cg, cb = AR:ClassColor(c.class)
+                local cr, cg, cb = TC:ClassColor(c.class)
                 if not st.enabled then cr, cg, cb = 0.5, 0.5, 0.5 end
                 r.name:SetText(c.name)
                 r.name:SetTextColor(cr, cg, cb)
@@ -100,7 +100,7 @@ local function build(f)
                 r.stage:SetText(c.configured and (c.stageLabel or "") or "")
                 r.icon:SetDesaturated(not st.enabled)
                 r:SetAlpha(st.enabled and 1 or 0.55)
-                if tonumber(c.guid) == AR.state.selected then
+                if tonumber(c.guid) == TC.state.selected then
                     r.bg:SetTexture(1, 0.82, 0.25, 0.16)
                 else
                     r.bg:SetTexture(1, 1, 1, 0.04)
@@ -136,30 +136,30 @@ local function build(f)
     aiLine:SetWidth(390)
 
     local call = W.Button(card, "Call companion", 130, 26, function()
-        local g = AR.state.selected
+        local g = TC.state.selected
         if not g then return end
-        AR:Request("summon", { guid = g }, function(msg)
+        TC:Request("summon", { guid = g }, function(msg)
             if msg.op == "ack" and msg.ok then
-                AR:Print("Calling your companion...")
+                TC:Print("Calling your companion...")
             elseif msg.op == "ack" then
-                AR:Print("|cffff6060Cannot call: " .. AR:AckText(msg) .. "|r")
+                TC:Print("|cffff6060Cannot call: " .. TC:AckText(msg) .. "|r")
             end
-            AR:Request("list_chars")
+            TC:Request("list_chars")
         end)
     end)
     call:SetPoint("TOPLEFT", 16, -170)
 
     local dismiss = W.Button(card, "Send home", 110, 26, function()
-        local g = AR.state.selected
+        local g = TC.state.selected
         if not g then return end
-        AR:Request("dismiss", { guid = g, logout = true }, function() AR:Request("list_chars") end)
+        TC:Request("dismiss", { guid = g, logout = true }, function() TC:Request("list_chars") end)
     end)
     dismiss:SetPoint("LEFT", call, "RIGHT", 8, 0)
 
     local aiToggle = W.Button(card, "Disable AI", 110, 26)
     aiToggle:SetPoint("LEFT", dismiss, "RIGHT", 8, 0)
     aiToggle:SetScript("OnClick", function()
-        local g, comp, char = AR:Selected()
+        local g, comp, char = TC:Selected()
         if not g or not comp then return end
         local s = comp.settings or {}
         local online = char and (char.status == "in_party" or char.status == "summoned")
@@ -168,7 +168,7 @@ local function build(f)
         else
             s.aiEnabled = not (s.aiEnabled ~= false)
         end
-        AR:Request("save_settings", { guid = g, settings = s }, function() AR:Request("list_chars") end)
+        TC:Request("save_settings", { guid = g, settings = s }, function() TC:Request("list_chars") end)
     end)
 
     local configure = W.Button(card, "Personality...", 130, 22, function() UI:ShowTab("personality") end)
@@ -187,7 +187,7 @@ local function build(f)
     help:SetWidth(390)
 
     function f:RefreshCard()
-        local g, comp, char = AR:Selected()
+        local g, comp, char = TC:Selected()
         local enabled = false
         if not char then
             name:SetText(g and "Loading..." or "Choose a companion")
@@ -198,13 +198,13 @@ local function build(f)
             aiLine:SetText("")
             portrait:SetTexture(nil)
         else
-            local st = AR:CharStatus(char)
+            local st = TC:CharStatus(char)
             enabled = st.enabled
             name:SetText(char.name)
-            name:SetTextColor(AR:ClassColor(char.class))
+            name:SetTextColor(TC:ClassColor(char.class))
             sub:SetText(("Level %d %s %s"):format(char.level or 0, char.raceName or "", char.className or ""))
             W.SetCompanionPortrait(portrait, char.name, char.class)
-            local r = AR.state.relationship[g]
+            local r = TC.state.relationship[g]
             if r then
                 stage:SetText(r.stageLabel or "")
                 mood:SetText("Mood: " .. ((r.mood or "relaxed"):gsub("_", " ")))
@@ -215,7 +215,7 @@ local function build(f)
             statusLine:SetText(("Status: |cff%02x%02x%02x%s|r  %s"):format(st.color[1] * 255, st.color[2] * 255, st.color[3] * 255,
                 st.label, char.reason or ""))
             local aiOn = not comp or not comp.settings or comp.settings.aiEnabled ~= false
-            local online = AR:OllamaOnline()
+            local online = TC:OllamaOnline()
             local present = char.status == "in_party" or char.status == "summoned"
             local aiText = not aiOn and "|cffaaaaaaoff|r" or (char.active and "|cff60ff60active|r")
                 or (present and "|cffffd100not active yet|r") or "|cff60ff60on (starts when called)|r"
@@ -232,14 +232,14 @@ local function build(f)
         if char and (status == "in_party" or status == "summoned") then dismiss:Enable() else dismiss:Disable() end
         if char and enabled then aiToggle:Enable() configure:Enable() rel:Enable() talk:Enable()
         else aiToggle:Disable() configure:Disable() rel:Disable() talk:Disable() end
-        if char and status == "available" and not AR.state.hello then call:Disable() end
+        if char and status == "available" and not TC.state.hello then call:Disable() end
     end
 
-    AR:On("CHARS_CHANGED", function() f:RefreshList() f:RefreshCard() end)
-    AR:On("SELECTION_CHANGED", function() f:RefreshList() f:RefreshCard() end)
-    AR:On("COMPANION_CHANGED", function() f:RefreshCard() end)
-    AR:On("RELATIONSHIP_CHANGED", function() f:RefreshCard() end)
-    AR:On("STATUS_CHANGED", function() f:RefreshCard() end)
+    TC:On("CHARS_CHANGED", function() f:RefreshList() f:RefreshCard() end)
+    TC:On("SELECTION_CHANGED", function() f:RefreshList() f:RefreshCard() end)
+    TC:On("COMPANION_CHANGED", function() f:RefreshCard() end)
+    TC:On("RELATIONSHIP_CHANGED", function() f:RefreshCard() end)
+    TC:On("STATUS_CHANGED", function() f:RefreshCard() end)
 
     f.OnShowTab = function()
         f:RefreshList()

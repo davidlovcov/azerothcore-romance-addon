@@ -1,5 +1,5 @@
 --[[
-  AzerothRomance - paged export / import of a companion.
+  TrueCompanion - paged export / import of a companion.
 
   One export can be much larger than one addon message, so it travels in pages:
     export:  "export" {part = 0, 1, ...}  ->  "export_data" {part, parts, data = page JSON}
@@ -8,13 +8,15 @@
   an import only when every part arrived; a missing answer aborts with an error after TIMEOUT.
 ]]
 
-local AR = _G.AzerothRomance
-local Json = AR.Json
+local TC = _G.TrueCompanion
+local Json = TC.Json
 
 local T = {}
-AR.Transfer = T
+TC.Transfer = T
 
-T.FORMAT = "mod-romance-export"
+T.FORMAT = "mod-true-companion-export"
+-- exports made before the module was renamed (mod-romance) can still be imported
+function T.IsFormat(f) return f == T.FORMAT or f == "mod-romance-export" end
 T.REQUEST_BUDGET = 14000     -- bytes per import request; the server accepts 16 KiB per message
 T.TIMEOUT = 30               -- seconds without an answer before a transfer is abandoned
 
@@ -56,7 +58,7 @@ function T:Busy() return active ~= nil end
 local function request(op, payload, cb)
     local tries = 0
     local function send()
-        AR:Request(op, payload, function(msg)
+        TC:Request(op, payload, function(msg)
             if msg.op == "error" and msg.code == "rate_limited" and active and tries < 8 then
                 tries = tries + 1
                 active.deadline = GetTime() + T.TIMEOUT
@@ -76,7 +78,7 @@ function T.JoinPages(pages)
     local full, memories = nil, {}
     for i, text in ipairs(pages) do
         local ok, page = pcall(Json.Decode, text)
-        if not ok or type(page) ~= "table" or page.format ~= T.FORMAT then return nil, "invalid page " .. i end
+        if not ok or type(page) ~= "table" or not T.IsFormat(page.format) then return nil, "invalid page " .. i end
         if page.page ~= nil and (tonumber(page.page) ~= i - 1 or tonumber(page.pages) ~= #pages) then
             return nil, "pages out of order"
         end
@@ -148,7 +150,7 @@ function T:Export(guid, onProgress, onDone)
         step(fail)
         request("export", { guid = guid, part = part }, function(msg)
             if not active then return end
-            if msg.op ~= "export_data" then return fail(AR:AckText(msg)) end
+            if msg.op ~= "export_data" then return fail(TC:AckText(msg)) end
             if msg.parts == nil then          -- server without paging: one complete export
                 finish()
                 local ok, full = pcall(Json.Decode, msg.data or "")
@@ -173,8 +175,8 @@ end
 function T:Import(guid, text, onProgress, onDone)
     if active then onDone(false, "another transfer is still running") return end
     local ok, full = pcall(Json.Decode, text or "")
-    if not ok or type(full) ~= "table" or full.format ~= T.FORMAT then
-        onDone(false, "that is not a complete mod-romance export (if you pasted it, the text may have been cut off)")
+    if not ok or type(full) ~= "table" or not T.IsFormat(full.format) then
+        onDone(false, "that is not a complete mod-true-companion export (if you pasted it, the text may have been cut off)")
         return
     end
     local pages, err = T.SplitForImport(full, guid)
@@ -186,7 +188,7 @@ function T:Import(guid, text, onProgress, onDone)
     local function expectOk(msg)
         if not active then return false end
         if msg.op ~= "ack" or not msg.ok then
-            fail(AR:AckText(msg))
+            fail(TC:AckText(msg))
             return false
         end
         return true

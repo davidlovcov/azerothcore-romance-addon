@@ -1,10 +1,14 @@
-# AzerothRomance (addon)
+<p align="center"><img src="icon.png" alt="True Companion" width="128" height="128"></p>
+
+<h1 align="center">True Companion (addon)</h1>
+
+<p align="center"><i>Formerly <b>AzerothRomance</b>. Upgrading? See <a href="#upgrading-from-azerothromance">Upgrading from AzerothRomance</a>.</i></p>
 
 **Author:** [davidlovcov](https://github.com/davidlovcov)
 
-World of Warcraft **3.3.5a** addon (Interface 30300) for the AzerothCore module **[mod-romance](https://github.com/davidlovcov/mod-romance)**: AI companions powered by mod-playerbots and a local Ollama model.
+World of Warcraft **3.3.5a** addon (Interface 30300) for the AzerothCore module **[mod-true-companion](https://github.com/davidlovcov/mod-true-companion)**: AI companions powered by mod-playerbots and a local Ollama model.
 
-> This addon only works on servers that run **mod-romance**. All data (characters, relationship, memories, AI) lives on the server; the addon displays it and sends your requests.
+> This addon only works on servers that run **mod-true-companion**. All data (characters, relationship, memories, AI) lives on the server; the addon displays it and sends your requests.
 
 ## Screenshots
 
@@ -37,19 +41,24 @@ The tabs come in two rows: on top the general ones (Companion, Commands, Quests,
 - **Relationship:** stage, mood, all relationship values, significant moments, and the starting relationship.
 - **Settings:** proactive chat, spoken commands, party chat, model and creativity (within the server's limits). "Hide Playerbots feedback" keeps lines like "Following" out of your chat window (they stay in the Chat tab, in gray).
 - **Debug:** a small tab with diagnostics, raw model output and the **memory viewer** (filter, edit, pin, delete, add, export and import).
-- Minimap button, `/romance` (or `/ar`), remembered window position.
+- Minimap button, `/tc` (or `/companion`), remembered window position.
 
 ## Installation
 
 1. Download this repository: green **Code** button → **Download ZIP**, or take a release ZIP.
-2. Copy the **`AzerothRomance`** folder into `World of Warcraft/Interface/AddOns/`, so that this path exists:
-   `Interface/AddOns/AzerothRomance/AzerothRomance.toc`
-3. Start the game and type `/romance`.
+2. Copy the **`TrueCompanion`** folder into `World of Warcraft/Interface/AddOns/`, so that this path exists:
+   `Interface/AddOns/TrueCompanion/TrueCompanion.toc`
+3. Start the game and type `/tc`.
+
+### Upgrading from AzerothRomance
+1. Delete `Interface/AddOns/AzerothRomance` and install `TrueCompanion` as above (with a server running mod-true-companion 2.0; the old addon can't talk to it and the other way round).
+2. To keep the addon's own settings (window position, your commands, ignored quests, memory exports), rename `WTF/Account/<ACCOUNT>/SavedVariables/AzerothRomance.lua` to `TrueCompanion.lua` before logging in. Everything else (companions, memories, relationships) lives on the server and is kept anyway.
+3. `/tc` or `/companion` opens the window (was `/romance`, `/ar`). Memory exports made before the rename can still be imported.
 
 With git:
 ```bash
-git clone https://github.com/davidlovcov/azerothcore-romance-addon.git
-# copy or symlink azerothcore-romance-addon/AzerothRomance into Interface/AddOns/
+git clone https://github.com/davidlovcov/azerothcore-true-companion-addon.git
+# copy or symlink azerothcore-true-companion-addon/TrueCompanion into Interface/AddOns/
 ```
 **Updating:** run `git pull` (or download again), then `/reload` in game.
 
@@ -57,24 +66,24 @@ git clone https://github.com/davidlovcov/azerothcore-romance-addon.git
 
 | Command | Action |
 |---|---|
-| `/romance` | open or close the window |
-| `/romance status` | server and Ollama status |
-| `/romance minimap` | show or hide the minimap button |
-| `/romance reset window` | move the window back to the centre |
+| `/tc` | open or close the window |
+| `/tc status` | server and Ollama status |
+| `/tc minimap` | show or hide the minimap button |
+| `/tc reset window` | move the window back to the centre |
 
-Everything you can say to a companion in chat ("give me 10 gold", "attack the wolf", "share your quests", "lead the way"...) is listed in [mod-romance/docs/COMMANDS.md](https://github.com/davidlovcov/mod-romance/blob/main/docs/COMMANDS.md).
+Everything you can say to a companion in chat ("give me 10 gold", "attack the wolf", "share your quests", "lead the way"...) is listed in [mod-true-companion/docs/COMMANDS.md](https://github.com/davidlovcov/mod-true-companion/blob/main/docs/COMMANDS.md).
 
 ## Tests
 
 The addon is tested headless with Lua 5.1 against a strict stub of the 3.3.5a API, with simulated server traffic:
 ```bash
 scripts/run-tests.sh
-ROMANCE_WIRE=../mod-romance/build-tests/romance_wire scripts/run-tests.sh   # + wire-format interop with the server
+TRUE_COMPANION_WIRE=../mod-true-companion/build-tests/true_companion_wire scripts/run-tests.sh   # + wire-format interop with the server
 ```
-The wire protocol is documented in [mod-romance/docs/ADDON_PROTOCOL.md](https://github.com/davidlovcov/mod-romance/blob/main/docs/ADDON_PROTOCOL.md).
+The wire protocol is documented in [mod-true-companion/docs/ADDON_PROTOCOL.md](https://github.com/davidlovcov/mod-true-companion/blob/main/docs/ADDON_PROTOCOL.md).
 
 ## License
 
-GPL-2.0-or-later, see [LICENSE](LICENSE). Textures are referenced from the game client; `AzerothRomance/Media/heart.tga` is original.
+GPL-2.0-or-later, see [LICENSE](LICENSE). Textures are referenced from the game client; `TrueCompanion/Media/logo.tga` is original (the True Companion logo).
 
 World of Warcraft® is a trademark of Blizzard Entertainment, Inc. This project isn't affiliated with or endorsed by Blizzard.

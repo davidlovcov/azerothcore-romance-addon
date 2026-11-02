@@ -1,18 +1,18 @@
 --[[
-  AzerothRomance - addon <-> server protocol (see ADDON_PROTOCOL.md)
+  TrueCompanion - addon <-> server protocol (see ADDON_PROTOCOL.md)
   Licensed under the GNU GPL v2 or later.
 
-  Wire chunk:   <id>:<seq>/<total>:<data>   sent with prefix "ARMN" as a WHISPER to yourself.
+  Wire chunk:   <id>:<seq>/<total>:<data>   sent with prefix "TCMP" as a WHISPER to yourself.
   The server answers with whispers in LANG_ADDON that arrive as CHAT_MSG_ADDON.
 ]]
 
-local AR = _G.AzerothRomance
-local Json = AR.Json
+local TC = _G.TrueCompanion
+local Json = TC.Json
 
 local Protocol = {}
-AR.Protocol = Protocol
+TC.Protocol = Protocol
 
-Protocol.PREFIX = "ARMN"
+Protocol.PREFIX = "TCMP"
 Protocol.VERSION = 1
 Protocol.CHUNK = 200
 Protocol.MAX_INBOUND = 64 * 1024     -- server messages (memory pages, exports)
@@ -120,7 +120,7 @@ function Sender:Queue(msg)
     return id
 end
 
--- Token bucket that stays well below the server's limit (mod-romance: 20 chunks/s, burst 80, plus 2 per
+-- Token bucket that stays well below the server's limit (mod-true-companion: 20 chunks/s, burst 80, plus 2 per
 -- complete request), so long transfers (imports of many memories) never run into "Too many requests".
 Sender.RATE = 10          -- chunks per second, sustained
 Sender.BURST = 30         -- chunks that may go out at once after a quiet moment

@@ -1,5 +1,5 @@
 --[[
-  Minimal WoW 3.3.5a API stub for running AzerothRomance outside the game (Lua 5.1).
+  Minimal WoW 3.3.5a API stub for running TrueCompanion outside the game (Lua 5.1).
   Frames are permissive objects that remember text/values/scripts; reading an
   undefined *global* raises an error so typos and Retail-only APIs are caught.
 ]]
@@ -163,11 +163,11 @@ date = os.date
 time = os.time
 
 -- strict globals: reading an unknown global is an error (catches typos and Retail-only APIs)
-local allowed = { AzerothRomanceDB = true, AzerothRomance = true, AzerothRomanceChatInput = true,
-    AzerothRomanceMainFrame = true, AzerothRomanceMemoryFrame = true, AzerothRomanceMinimapButton = true }
+local allowed = { TrueCompanionDB = true, TrueCompanion = true, TrueCompanionChatInput = true,
+    TrueCompanionMainFrame = true, TrueCompanionMemoryFrame = true, TrueCompanionMinimapButton = true }
 setmetatable(_G, {
     __index = function(_, k)
-        if allowed[k] or (type(k) == "string" and (k:match("^AzerothRomance") or k:match("^SLASH_"))) then return nil end
+        if allowed[k] or (type(k) == "string" and (k:match("^TrueCompanion") or k == "AzerothRomanceDB" or k:match("^SLASH_"))) then return nil end
         error("read of undefined global '" .. tostring(k) .. "'", 2)
     end,
 })

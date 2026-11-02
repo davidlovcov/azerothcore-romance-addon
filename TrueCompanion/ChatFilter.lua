@@ -1,5 +1,5 @@
 --[[
-  AzerothRomance - hides Playerbots' command feedback from your AI companions in the chat window.
+  TrueCompanion - hides Playerbots' command feedback from your AI companions in the chat window.
 
   Playerbots answers commands with short lines ("Following", "attack rti target: useless", quest
   notices). Next to the companion's own reply they clutter the chat. The server sends every AI reply
@@ -12,7 +12,7 @@
   Licensed under the GNU GPL v2 or later.
 ]]
 
-local AR = _G.AzerothRomance
+local TC = _G.TrueCompanion
 
 local F = {
     expected = {},   -- lower-case name -> { { text = normalized reply, t = GetTime() }, ... }
@@ -20,7 +20,7 @@ local F = {
     seen = {},       -- line id -> true (every chat frame runs the filter for the same line)
     seenCount = 0,
 }
-AR.ChatFilter = F
+TC.ChatFilter = F
 
 F.EXPECT_SECONDS = 30
 F.ALLOW_SECONDS = 6
@@ -41,21 +41,21 @@ local function baseName(author)
 end
 
 function F:Enabled()
-    local feat = AR.state.hello and AR.state.hello.features
-    return feat and feat.botFeedback and AR.db and AR.db.hideBotFeedback ~= false
+    local feat = TC.state.hello and TC.state.hello.features
+    return feat and feat.botFeedback and TC.db and TC.db.hideBotFeedback ~= false
 end
 
 -- Active companion with that chat name, or nil.
 function F:Companion(author)
     local n = baseName(author)
     if n == "" then return nil end
-    for _, c in ipairs(AR.state.chars or {}) do
+    for _, c in ipairs(TC.state.chars or {}) do
         if c.active and c.name and c.name:lower() == n then return c end
     end
 end
 
 function F:NameOf(guid)
-    local c = AR:FindChar(guid)
+    local c = TC:FindChar(guid)
     return c and c.name and c.name:lower()
 end
 
@@ -111,7 +111,7 @@ function F:Filter(event, msg, author, ...)
         self.seen[key] = true
         self.seenCount = self.seenCount + 1
         if self.seenCount > 200 then self.seen, self.seenCount = { [key] = true }, 1 end
-        AR:AddChatLine(tonumber(c.guid), "system", msg, time())
+        TC:AddChatLine(tonumber(c.guid), "system", msg, time())
     end
     return true
 end

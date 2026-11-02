@@ -1,11 +1,11 @@
 --[[
-  AzerothRomance - Settings tab: per-companion preferences (within server limits) and addon options.
+  TrueCompanion - Settings tab: per-companion preferences (within server limits) and addon options.
   Server-wide settings (Ollama URL, limits) are administrator-only and not editable here.
 ]]
 
-local AR = _G.AzerothRomance
-local W = AR.W
-local UI = AR.UI
+local TC = _G.TrueCompanion
+local W = TC.W
+local UI = TC.UI
 
 local function build(f)
     local left = W.Panel(f, 440, 440)
@@ -51,29 +51,29 @@ local function build(f)
     local ts = W.Check(right, "Show timestamps in chat")
     ts:SetPoint("TOPLEFT", 10, -34)
     ts:SetScript("OnClick", function(self)
-        AR.db.timestamps = self:GetChecked() and true or false
-        AR:Fire("CHAT_CHANGED", AR.state.selected)
+        TC.db.timestamps = self:GetChecked() and true or false
+        TC:Fire("CHAT_CHANGED", TC.state.selected)
     end)
     local mm = W.Check(right, "Show minimap button")
     mm:SetPoint("TOPLEFT", 10, -60)
     mm:SetScript("OnClick", function(self)
-        AR.db.minimap.hide = not self:GetChecked()
-        AR:Fire("MINIMAP_TOGGLE")
+        TC.db.minimap.hide = not self:GetChecked()
+        TC:Fire("MINIMAP_TOGGLE")
     end)
     local quiet = W.Check(right, "Hide Playerbots feedback", "Lines like \"Following\" or \"attack rti target: useless\" from your companions only show in the Chat tab (gray), not in the chat window.")
     quiet:SetPoint("TOPLEFT", 10, -86)
     quiet:SetScript("OnClick", function(self)
-        AR.db.hideBotFeedback = self:GetChecked() and true or false
+        TC.db.hideBotFeedback = self:GetChecked() and true or false
     end)
     local clearLocal = W.Button(right, "Clear local chat log", 150, 22, function()
-        if AR.state.selected then
-            local log = AR:ChatLog(AR.state.selected)
+        if TC.state.selected then
+            local log = TC:ChatLog(TC.state.selected)
             for i = #log, 1, -1 do log[i] = nil end
-            AR:Fire("CHAT_CHANGED", AR.state.selected)
+            TC:Fire("CHAT_CHANGED", TC.state.selected)
         end
     end)
     clearLocal:SetPoint("TOPLEFT", 14, -120)
-    local slashHelp = W.Label(right, "/romance  - open or close\n/romance status  - server status\n/romance minimap  - toggle button\n/romance reset window", 10, W.MUTED)
+    local slashHelp = W.Label(right, "/tc  - open or close\n/tc status  - server status\n/tc minimap  - toggle button\n/tc reset window", 10, W.MUTED)
     slashHelp:SetPoint("TOPLEFT", 14, -152)
 
     local info = W.Panel(f, 300, 210)
@@ -85,7 +85,7 @@ local function build(f)
     serverText:SetWidth(276)
 
     function f:Load()
-        local g, comp, char = AR:Selected()
+        local g, comp, char = TC:Selected()
         local s = (comp and comp.settings) or {}
         who:SetText(char and ("for " .. char.name) or "Select a companion first.")
         ai:SetChecked(s.aiEnabled ~= false)
@@ -96,7 +96,7 @@ local function build(f)
         listen:SetChecked(s.listenInParty ~= false)
         waitLoot:SetChecked(s.waitForPlayerLoot and true or false)
         local items = { { value = "", text = "Server default" } }
-        local m = AR.state.models
+        local m = TC.state.models
         if m and m.choice then
             for _, name in ipairs(m.models or {}) do items[#items + 1] = { value = name, text = name } end
         end
@@ -105,17 +105,17 @@ local function build(f)
         local t = tonumber(s.temperature) or -1
         temp:SetValue(t >= 0 and math.floor(t * 100 + 0.5) or 0)
         maxChars:SetValue(tonumber(s.maxReplyChars) or 0)
-        ts:SetChecked(AR.db.timestamps)
-        mm:SetChecked(not AR.db.minimap.hide)
-        quiet:SetChecked(AR.db.hideBotFeedback ~= false)
+        ts:SetChecked(TC.db.timestamps)
+        mm:SetChecked(not TC.db.minimap.hide)
+        quiet:SetChecked(TC.db.hideBotFeedback ~= false)
         if g then save:Enable() else save:Disable() end
 
-        local st = AR.state.status or {}
+        local st = TC.state.status or {}
         local o = st.ollama or {}
-        local feat = (AR.state.hello and AR.state.hello.features) or {}
-        local srv = AR.state.hello and AR.state.hello.module
-        local ver = ("Addon: v%s\nServer module: %s"):format(AR.version, srv and ("v" .. srv) or "|cffaaaaaaunknown (older module)|r")
-        if srv and srv ~= AR.version then ver = ver .. " |cffff6060(differs from the addon)|r" end
+        local feat = (TC.state.hello and TC.state.hello.features) or {}
+        local srv = TC.state.hello and TC.state.hello.module
+        local ver = ("Addon: v%s\nServer module: %s"):format(TC.version, srv and ("v" .. srv) or "|cffaaaaaaunknown (older module)|r")
+        if srv and srv ~= TC.version then ver = ver .. " |cffff6060(differs from the addon)|r" end
         serverText:SetText(ver .. ("\nModule: %s\nOllama: %s %s\nDefault model: %s\nInstalled models: %d\nProactive chat: %s\nSpoken commands: %s\nPlayerbots: %s"):format(
             st.enabled == false and "|cffff6060disabled|r" or "|cff60ff60enabled|r",
             o.online and "|cff60ff60online|r" or "|cffff6060offline|r", o.version or "",
@@ -129,7 +129,7 @@ local function build(f)
     end
 
     save:SetScript("OnClick", function()
-        local g = AR.state.selected
+        local g = TC.state.selected
         if not g then return end
         local t = temp:GetValueInt()
         local s = {
@@ -145,20 +145,20 @@ local function build(f)
             maxReplyChars = maxChars:GetValueInt(),
         }
         status:SetText("Saving...")
-        AR:Request("save_settings", { guid = g, settings = s }, function(msg)
+        TC:Request("save_settings", { guid = g, settings = s }, function(msg)
             if msg.op == "ack" then
-                status:SetText(msg.ok and "|cff60ff60Saved.|r" or ("|cffff6060" .. AR:AckText(msg) .. "|r"))
+                status:SetText(msg.ok and "|cff60ff60Saved.|r" or ("|cffff6060" .. TC:AckText(msg) .. "|r"))
             end
         end)
     end)
 
-    AR:On("COMPANION_CHANGED", function() if f:IsShown() then f:Load() end end)
-    AR:On("MODELS_CHANGED", function() if f:IsShown() then f:Load() end end)
-    AR:On("STATUS_CHANGED", function() if f:IsShown() then f:Load() end end)
-    AR:On("SELECTION_CHANGED", function() if f:IsShown() then f:Load() end end)
+    TC:On("COMPANION_CHANGED", function() if f:IsShown() then f:Load() end end)
+    TC:On("MODELS_CHANGED", function() if f:IsShown() then f:Load() end end)
+    TC:On("STATUS_CHANGED", function() if f:IsShown() then f:Load() end end)
+    TC:On("SELECTION_CHANGED", function() if f:IsShown() then f:Load() end end)
     f.OnShowTab = function()
-        AR:Request("list_models")
-        AR:Request("get_status")
+        TC:Request("list_models")
+        TC:Request("get_status")
         f:Load()
     end
 end

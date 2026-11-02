@@ -1,10 +1,10 @@
 --[[
-  AzerothRomance - Debug tab (deliberately small): diagnostics, memory inspector, errors.
+  TrueCompanion - Debug tab (deliberately small): diagnostics, memory inspector, errors.
 ]]
 
-local AR = _G.AzerothRomance
-local W = AR.W
-local UI = AR.UI
+local TC = _G.TrueCompanion
+local W = TC.W
+local UI = TC.UI
 
 local function build(f)
     local left = W.Panel(f, 370, 440)
@@ -16,13 +16,13 @@ local function build(f)
     local text = W.Label(left, "", 11, W.TEXT)
     text:SetPoint("TOPLEFT", 12, -34)
     text:SetWidth(346)
-    local mem = W.Button(left, "Advanced Memory...", 150, 22, function() AR.MemoryViewer:Open() end)
+    local mem = W.Button(left, "Advanced Memory...", 150, 22, function() TC.MemoryViewer:Open() end)
     mem:SetPoint("BOTTOMLEFT", 12, 10)
     local clearChat = W.Button(left, "Clear server chat history", 180, 22, function()
-        local g = AR.state.selected
+        local g = TC.state.selected
         if not g then return end
-        local popup = StaticPopup_Show("AZEROTHROMANCE_CONFIRM", "Delete the stored conversation history (memories are kept)?")
-        if popup then popup.data = function() AR:Request("clear_history", { guid = g }) end end
+        local popup = StaticPopup_Show("TRUECOMPANION_CONFIRM", "Delete the stored conversation history (memories are kept)?")
+        if popup then popup.data = function() TC:Request("clear_history", { guid = g }) end end
     end)
     clearChat:SetPoint("LEFT", mem, "RIGHT", 8, 0)
 
@@ -43,8 +43,8 @@ local function build(f)
     local function esc(s) return (tostring(s or "")):gsub("|", "||") end
 
     function f:Load()
-        local g = AR.state.selected
-        AR:Request(g and "get_debug" or "get_status", { guid = g }, function(msg)
+        local g = TC.state.selected
+        TC:Request(g and "get_debug" or "get_status", { guid = g }, function(msg)
             local o = msg.ollama or {}
             local q = msg.queue or {}
             local d = msg.debug or {}
@@ -79,12 +79,12 @@ local function build(f)
             log:AddMessage(" ")
         end
         log:AddMessage("|cffffd100Client errors:|r")
-        for _, e in ipairs(AR.state.errors) do
+        for _, e in ipairs(TC.state.errors) do
             log:AddMessage(("|cff888888%s|r %s: %s"):format(date("%H:%M:%S", e.t), esc(e.where), esc(e.msg)))
         end
     end
     refresh:SetScript("OnClick", function() f:Load() end)
-    AR:On("ERRORS_CHANGED", function() if f:IsShown() then f:RenderLog() end end)
+    TC:On("ERRORS_CHANGED", function() if f:IsShown() then f:RenderLog() end end)
     f.OnShowTab = function() f:Load() end
 end
 

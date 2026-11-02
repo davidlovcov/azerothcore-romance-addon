@@ -1,12 +1,12 @@
 --[[
-  AzerothRomance - random story & taste for companions and the player profile.
+  TrueCompanion - random story & taste for companions and the player profile.
   Everything is local to the addon; nothing is saved until you press Save.
   Lines are combined from several pools, so results rarely repeat.
 ]]
 
-local AR = _G.AzerothRomance
+local TC = _G.TrueCompanion
 local R = {}
-AR.Random = R
+TC.Random = R
 
 local function pick(list) return list[math.random(#list)] end
 

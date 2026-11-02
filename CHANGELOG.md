@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## Unreleased (2.0.0)
+
+### Renamed: AzerothRomance is now True Companion
+- Addon folder `TrueCompanion`, `/tc` or `/companion`, new logo (window and minimap button) and colours. Romantic relationships stay a per-companion option ("Romantic relationship possible"). Needs mod-true-companion 2.0 (the module was renamed too).
+- Your settings come along if you rename the saved variables file (README, "Upgrading from AzerothRomance"); memory exports made before the rename can still be imported.
 
 ### Added
 - Quests tab: the quests of the whole group (who has which, who is done) and the quests available around. Change the order with Up / Down and "Apply order" (the leading companion switches right away), "Lead" sends the selected companion there, "Ignore" keeps a quest from ever being picked up or done, "Abandon" (click twice) drops it for every companion. Replaces the Character tab's quest order window. Needs mod-romance 1.1.1.
@@ -14,6 +18,7 @@
 - Settings tab shows the addon and the server module version, and warns when they differ.
 
 ### Fixed
+- Quests tab with a server module older than the addon: "server too old for Take" instead of "nobody can take it".
 - Quests tab: the last "Available around here" row overlapped the paging and the Refresh button; long rows are cut instead of wrapping into the next one.
 - The tab row shrinks evenly when the tabs would not fit next to the Debug tab.
 - The export window: the explanation no longer runs out of the window, and an export that is too large to show has no (useless) text box.

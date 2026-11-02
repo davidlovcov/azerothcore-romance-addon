@@ -1,11 +1,11 @@
 --[[
-  AzerothRomance - Player Profile tab: who you are in the roleplay.
+  TrueCompanion - Player Profile tab: who you are in the roleplay.
   Stored per character, with an optional account-wide default.
 ]]
 
-local AR = _G.AzerothRomance
-local W = AR.W
-local UI = AR.UI
+local TC = _G.TrueCompanion
+local W = TC.W
+local UI = TC.UI
 
 local FIELDS = {
     { key = "rpIdentity", label = "Roleplay identity (who you are in this world)" },
@@ -60,9 +60,9 @@ local function build(f)
     local save = W.Button(f, "Save profile", 130, 24)
     save:SetPoint("BOTTOMRIGHT", -4, 6)
     local random = W.Button(f, "Randomize story", 130, 24, function()
-        local _, comp, char = AR:Selected()
+        local _, comp, char = TC:Selected()
         local companion = (comp and comp.personality and comp.personality.name ~= "" and comp.personality.name) or (char and char.name)
-        for key, v in pairs(AR.Random.PlayerStory(companion)) do
+        for key, v in pairs(TC.Random.PlayerStory(companion)) do
             if fields[key] then fields[key]:SetValue(v) end
         end
         status:SetText("Random story filled in - press Save to keep it.")
@@ -71,14 +71,14 @@ local function build(f)
     W.Tooltip(random, "Randomize story", "Fills identity, background, interests and shared history with a random story. Name, age and pronouns stay.")
 
     function f:Load()
-        local p = AR.state.profile or {}
+        local p = TC.state.profile or {}
         for key, e in pairs(fields) do
             local v = p[key]
             if key == "age" then v = (tonumber(p.age) or 0) > 0 and tostring(p.age) or "" end
             e:SetValue(v or "")
         end
-        default:SetChecked(AR.state.profileIsDefault and true or false)
-        status:SetText(AR.state.profileIsDefault and "Showing your account-wide profile." or "Showing this character's profile.")
+        default:SetChecked(TC.state.profileIsDefault and true or false)
+        status:SetText(TC.state.profileIsDefault and "Showing your account-wide profile." or "Showing this character's profile.")
     end
 
     save:SetScript("OnClick", function()
@@ -86,16 +86,16 @@ local function build(f)
         for key, e in pairs(fields) do p[key] = e:GetValue() end
         p.age = tonumber(p.age) or 0
         status:SetText("Saving...")
-        AR:Request("save_profile", { profile = p, accountDefault = default:GetChecked() and true or false }, function(msg)
+        TC:Request("save_profile", { profile = p, accountDefault = default:GetChecked() and true or false }, function(msg)
             status:SetText(msg.ok and "|cff60ff60Saved.|r" or "|cffff6060Could not save.|r")
-            AR:Request("get_profile")
+            TC:Request("get_profile")
         end)
     end)
 
-    AR:On("PROFILE_CHANGED", function() if f:IsShown() then f:Load() end end)
+    TC:On("PROFILE_CHANGED", function() if f:IsShown() then f:Load() end end)
     f.OnShowTab = function()
         f:Load()
-        AR:Request("get_profile")
+        TC:Request("get_profile")
     end
 end
 

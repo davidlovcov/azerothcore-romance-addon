@@ -1,12 +1,12 @@
 --[[
-  AzerothRomance - main window, tabs, minimap button.
+  TrueCompanion - main window, tabs, minimap button.
 ]]
 
-local AR = _G.AzerothRomance
-local W = AR.W
+local TC = _G.TrueCompanion
+local W = TC.W
 
 local UI = { tabs = {}, order = {} }
-AR.UI = UI
+TC.UI = UI
 
 local WIDTH, HEIGHT = 780, 562
 local CONTENT_TOP = -106   -- below the two tab rows
@@ -70,16 +70,16 @@ function UI:ShowTab(id)
         local f = CreateFrame("Frame", nil, self.content)
         f:SetAllPoints(self.content)
         local ok, err = pcall(tab.build, f)
-        if not ok then AR:LogError("build:" .. id, err) end
+        if not ok then TC:LogError("build:" .. id, err) end
         tab.frame = f
     end
     tab.frame:Show()
     self.current = id
-    AR.db.lastTab = id
+    TC.db.lastTab = id
     for tid in pairs(self.tabs) do self:StyleTab(tid) end
     if tab.frame.OnShowTab then
         local ok, err = pcall(tab.frame.OnShowTab, tab.frame)
-        if not ok then AR:LogError("show:" .. id, err) end
+        if not ok then TC:LogError("show:" .. id, err) end
     end
 end
 
@@ -87,7 +87,7 @@ end
 function UI:Build()
     if self.main then return end
     local f = W.Panel(UIParent, WIDTH, HEIGHT, 0.95)
-    _G.AzerothRomanceMainFrame = f
+    _G.TrueCompanionMainFrame = f
     f:SetFrameStrata("HIGH")
     f:SetToplevel(true)
     f:SetClampedToScreen(true)
@@ -98,12 +98,12 @@ function UI:Build()
     f:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         local point, _, _, x, y = self:GetPoint()
-        AR.db.window = { point = point, x = x, y = y }
+        TC.db.window = { point = point, x = x, y = y }
     end)
-    local w = AR.db.window
+    local w = TC.db.window
     f:SetPoint(w.point or "CENTER", UIParent, w.point or "CENTER", w.x or 0, w.y or 0)
     f:Hide()
-    tinsert(UISpecialFrames, "AzerothRomanceMainFrame")   -- ESC closes the window
+    tinsert(UISpecialFrames, "TrueCompanionMainFrame")   -- ESC closes the window
     self.main = f
 
     -- header
@@ -111,13 +111,13 @@ function UI:Build()
     glow:SetPoint("TOPLEFT", 4, -4)
     glow:SetPoint("TOPRIGHT", -4, -4)
     glow:SetHeight(46)
-    glow:SetTexture(0.35, 0.12, 0.22, 0.45)
+    glow:SetTexture(0.04, 0.09, 0.30, 0.55)
     local icon = f:CreateTexture(nil, "ARTWORK")
     icon:SetWidth(26)
     icon:SetHeight(26)
     icon:SetPoint("TOPLEFT", 14, -12)
-    icon:SetTexture("Interface\\AddOns\\AzerothRomance\\Media\\heart")
-    local title = W.Label(f, "Azeroth Romance", 17, W.GOLD, "GameFontNormalLarge")
+    icon:SetTexture("Interface\\AddOns\\TrueCompanion\\Media\\logo")
+    local title = W.Label(f, "True Companion", 17, W.GOLD, "GameFontNormalLarge")
     title:SetPoint("LEFT", icon, "RIGHT", 8, 0)
     self.subtitle = W.Label(f, "", 11, W.MUTED)
     self.subtitle:SetPoint("LEFT", title, "RIGHT", 12, -1)
@@ -199,24 +199,24 @@ function UI:Build()
 
     f:SetScript("OnShow", function()
         UI:RefreshStatus()
-        if not AR.state.connected then
-            AR:Request("hello", { version = AR.version, protocol = AR.Protocol.VERSION })
+        if not TC.state.connected then
+            TC:Request("hello", { version = TC.version, protocol = TC.Protocol.VERSION })
         end
-        AR:Request("list_chars")
-        AR:Request("get_status")
+        TC:Request("list_chars")
+        TC:Request("get_status")
     end)
 
-    AR:On("STATUS_CHANGED", function() UI:RefreshStatus() end)
-    AR:On("HELLO", function() UI:RefreshStatus() end)
-    AR:On("SELECTION_CHANGED", function() UI:RefreshCompanionLabel() end)
-    AR:On("CHARS_CHANGED", function() UI:RefreshCompanionLabel() end)
+    TC:On("STATUS_CHANGED", function() UI:RefreshStatus() end)
+    TC:On("HELLO", function() UI:RefreshStatus() end)
+    TC:On("SELECTION_CHANGED", function() UI:RefreshCompanionLabel() end)
+    TC:On("CHARS_CHANGED", function() UI:RefreshCompanionLabel() end)
     self:RefreshCompanionLabel()
 end
 
 -- the second tab row is about the companion selected on the Companion tab
 function UI:RefreshCompanionLabel()
     if not self.companionLabel then return end
-    local c = AR.state.selected and AR:FindChar(AR.state.selected)
+    local c = TC.state.selected and TC:FindChar(TC.state.selected)
     if c and c.name then
         self.companionLabel:SetText(("|cffffd100%s|r:"):format(c.name))
     else
@@ -226,9 +226,9 @@ end
 
 function UI:RefreshStatus()
     if not self.light then return end
-    local s = AR.state.status
-    local online = AR:OllamaOnline()
-    if not AR.state.connected then
+    local s = TC.state.status
+    local online = TC:OllamaOnline()
+    if not TC.state.connected then
         self.light:SetVertexColor(0.5, 0.5, 0.5)
         self.lightText:SetText("Connecting to server...")
     elseif s and s.enabled == false then
@@ -246,7 +246,7 @@ function UI:RefreshStatus()
     end
     -- The header names the companions that are really with you, not just the selected one:
     -- a failed call must not look like a switch.
-    local names = AR:ActiveNames()
+    local names = TC:ActiveNames()
     if #names > 0 then
         self.subtitle:SetText(("with %s"):format(table.concat(names, ", ")))
     else
@@ -260,7 +260,7 @@ function UI:Toggle()
         self.main:Hide()
     else
         self.main:Show()
-        self:ShowTab(self.current or AR.db.lastTab or "companion")
+        self:ShowTab(self.current or TC.db.lastTab or "companion")
     end
 end
 
@@ -276,14 +276,14 @@ UI.SetShown = setShown
 -- ---------------------------------------------------------------- minimap button
 
 local function updateMinimapPosition(btn)
-    local angle = math.rad(AR.db.minimap.angle or 220)
+    local angle = math.rad(TC.db.minimap.angle or 220)
     local r = 80
     btn:ClearAllPoints()
     btn:SetPoint("CENTER", Minimap, "CENTER", math.cos(angle) * r, math.sin(angle) * r)
 end
 
 local function buildMinimapButton()
-    local b = CreateFrame("Button", "AzerothRomanceMinimapButton", Minimap)
+    local b = CreateFrame("Button", "TrueCompanionMinimapButton", Minimap)
     b:SetWidth(31)
     b:SetHeight(31)
     b:SetFrameStrata("MEDIUM")
@@ -299,7 +299,7 @@ local function buildMinimapButton()
     local icon = b:CreateTexture(nil, "BACKGROUND")
     icon:SetWidth(20)
     icon:SetHeight(20)
-    icon:SetTexture("Interface\\AddOns\\AzerothRomance\\Media\\heart")
+    icon:SetTexture("Interface\\AddOns\\TrueCompanion\\Media\\logo")
     icon:SetPoint("CENTER", b, "TOPLEFT", 16.5, -16.5)   -- the middle of the border ring
     b:SetScript("OnClick", function(_, button)
         if button == "RightButton" then
@@ -314,14 +314,14 @@ local function buildMinimapButton()
             local cx, cy = GetCursorPosition()
             local scale = Minimap:GetEffectiveScale()
             cx, cy = cx / scale, cy / scale
-            AR.db.minimap.angle = math.deg(math.atan2(cy - my, cx - mx))
+            TC.db.minimap.angle = math.deg(math.atan2(cy - my, cx - mx))
             updateMinimapPosition(self)
         end)
     end)
     b:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
     b:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:SetText("Azeroth Romance", 1, 0.82, 0.25)
+        GameTooltip:SetText("True Companion", 1, 0.82, 0.25)
         GameTooltip:AddLine("Left-click: open / close", 1, 1, 1)
         GameTooltip:AddLine("Right-click: chat", 1, 1, 1)
         GameTooltip:AddLine("Drag: move button", 0.7, 0.7, 0.7)
@@ -329,14 +329,14 @@ local function buildMinimapButton()
     end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
     updateMinimapPosition(b)
-    setShown(b, not AR.db.minimap.hide)
+    setShown(b, not TC.db.minimap.hide)
     UI.minimap = b
 end
 
-AR:On("DB_READY", function()
+TC:On("DB_READY", function()
     buildMinimapButton()
 end)
 
-AR:On("MINIMAP_TOGGLE", function()
-    if UI.minimap then setShown(UI.minimap, not AR.db.minimap.hide) end
+TC:On("MINIMAP_TOGGLE", function()
+    if UI.minimap then setShown(UI.minimap, not TC.db.minimap.hide) end
 end)

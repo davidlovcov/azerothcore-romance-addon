@@ -1,11 +1,11 @@
 --[[
-  AzerothRomance - Chat tab: conversation history and input.
+  TrueCompanion - Chat tab: conversation history and input.
   The companion also answers in normal whispers; this panel mirrors the conversation.
 ]]
 
-local AR = _G.AzerothRomance
-local W = AR.W
-local UI = AR.UI
+local TC = _G.TrueCompanion
+local W = TC.W
+local UI = TC.UI
 
 local function build(f)
     local panel = W.Panel(f, nil, nil, 0.75)
@@ -38,7 +38,7 @@ local function build(f)
     typing:SetPoint("BOTTOMLEFT", 14, 8)
 
     -- input
-    local input = W.StyleInput(CreateFrame("EditBox", "AzerothRomanceChatInput", f))
+    local input = W.StyleInput(CreateFrame("EditBox", "TrueCompanionChatInput", f))
     input:SetHeight(26)
     input:SetPoint("BOTTOMLEFT", 0, 30)
     input:SetPoint("BOTTOMRIGHT", -100, 30)
@@ -49,13 +49,13 @@ local function build(f)
     hint:SetPoint("BOTTOMLEFT", 8, 8)
 
     local function playerName()
-        local p = AR.state.profile
+        local p = TC.state.profile
         return (p and p.preferredName and p.preferredName ~= "" and p.preferredName) or UnitName("player")
     end
 
     local function lineFor(entry, compName)
         local ts = ""
-        if AR.db.timestamps and entry.ts then
+        if TC.db.timestamps and entry.ts then
             ts = "|cff777777" .. date("%H:%M", entry.ts) .. "|r "
         end
         local text = (entry.text or ""):gsub("|", "||")
@@ -71,7 +71,7 @@ local function build(f)
     end
 
     function f:Render()
-        local g, comp, char = AR:Selected()
+        local g, comp, char = TC:Selected()
         log:Clear()
         if not g then
             header:SetText("No companion selected")
@@ -80,7 +80,7 @@ local function build(f)
         end
         local cname = char and char.name or (comp and comp.name) or "Companion"
         header:SetText("Conversation with " .. cname)
-        local entries = AR:ChatLog(g)
+        local entries = TC:ChatLog(g)
         local start = math.max(1, #entries - 150)
         for i = start, #entries do
             log:AddMessage(lineFor(entries[i], cname))
@@ -92,8 +92,8 @@ local function build(f)
     local dots = 0
     local acc = 0
     function f:RenderTyping()
-        local g, _, char = AR:Selected()
-        if g and AR.state.typing[g] then
+        local g, _, char = TC:Selected()
+        if g and TC.state.typing[g] then
             typing:SetText((char and char.name or "Companion") .. " is thinking" .. string.rep(".", dots + 1))
         else
             typing:SetText("")
@@ -110,27 +110,27 @@ local function build(f)
 
     local function doSend()
         local text = (input:GetText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
-        local g = AR.state.selected
+        local g = TC.state.selected
         if text == "" or not g then return end
         input:SetText("")
         if text:sub(1, 1) == "!" then
-            AR:AddChatLine(g, "command", text:sub(2), time())
+            TC:AddChatLine(g, "command", text:sub(2), time())
         end
-        AR.state.typing[g] = text:sub(1, 1) ~= "!" or nil
+        TC.state.typing[g] = text:sub(1, 1) ~= "!" or nil
         f:RenderTyping()
-        AR:Request("chat", { guid = g, text = text })
+        TC:Request("chat", { guid = g, text = text })
     end
     send:SetScript("OnClick", doSend)
     input:SetScript("OnEnterPressed", function(self) doSend() end)
     input:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
-    AR:On("CHAT_CHANGED", function(g) if g == AR.state.selected and f:IsShown() then f:Render() end end)
-    AR:On("TYPING_CHANGED", function() f:RenderTyping() end)
-    AR:On("SELECTION_CHANGED", function() if f:IsShown() then f:Render() end end)
-    AR:On("PROFILE_CHANGED", function() if f:IsShown() then f:Render() end end)
+    TC:On("CHAT_CHANGED", function(g) if g == TC.state.selected and f:IsShown() then f:Render() end end)
+    TC:On("TYPING_CHANGED", function() f:RenderTyping() end)
+    TC:On("SELECTION_CHANGED", function() if f:IsShown() then f:Render() end end)
+    TC:On("PROFILE_CHANGED", function() if f:IsShown() then f:Render() end end)
 
     f.OnShowTab = function()
-        if not AR.state.profile then AR:Request("get_profile") end
+        if not TC.state.profile then TC:Request("get_profile") end
         f:Render()
         input:SetFocus()
     end

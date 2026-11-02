@@ -1,11 +1,11 @@
 ## Interface: 30300
-## Title: |cffff99ccAzeroth Romance|r
-## Notes: AI companion & relationship UI for the mod-romance AzerothCore module (Playerbots + Ollama).
-## Author: mod-romance contributors
-## Version: 1.1.1-dev
-## SavedVariables: AzerothRomanceDB
+## Title: |cfff2e6c8True Companion|r
+## Notes: AI companions for the mod-true-companion AzerothCore module (Playerbots + Ollama).
+## Author: davidlovcov
+## Version: 2.0.0-dev
+## SavedVariables: TrueCompanionDB, AzerothRomanceDB
 ## X-License: GPL-2.0-or-later
-## X-Website: https://github.com/davidlovcov/azerothcore-romance-addon
+## X-Website: https://github.com/davidlovcov/azerothcore-true-companion-addon
 
 Libs\Json.lua
 Libs\Protocol.lua

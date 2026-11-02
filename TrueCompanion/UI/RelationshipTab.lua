@@ -1,11 +1,11 @@
 --[[
-  AzerothRomance - Relationship tab: stage, values, mood, milestones, starting relationship.
+  TrueCompanion - Relationship tab: stage, values, mood, milestones, starting relationship.
   All values are server-authoritative; this tab only displays them.
 ]]
 
-local AR = _G.AzerothRomance
-local W = AR.W
-local UI = AR.UI
+local TC = _G.TrueCompanion
+local W = TC.W
+local UI = TC.UI
 
 local VALUES = {
     { key = "friendship", label = "Friendship", color = { 0.45, 0.8, 1.0 } },
@@ -17,7 +17,7 @@ local VALUES = {
     { key = "satisfaction", label = "Relationship satisfaction", color = { 1.0, 0.8, 0.35 } },
 }
 
-StaticPopupDialogs["AZEROTHROMANCE_SET_STAGE"] = {
+StaticPopupDialogs["TRUECOMPANION_SET_STAGE"] = {
     text = "Set the starting relationship to |cffffd100%s|r?\nThis replaces the current relationship values. Memories are kept.",
     button1 = YES, button2 = NO, timeout = 0, whileDead = true, hideOnEscape = true,
     OnAccept = function(self, data) data() end,
@@ -66,7 +66,7 @@ local function build(f)
     right:SetPoint("TOPRIGHT", 0, 0)
     local mh = W.Heading(right, "Significant moments")
     mh:SetPoint("TOPLEFT", 12, -10)
-    local memButton = W.Button(right, "Memories...", 100, 20, function() AR.MemoryViewer:Open() end)
+    local memButton = W.Button(right, "Memories...", 100, 20, function() TC.MemoryViewer:Open() end)
     memButton:SetPoint("TOPRIGHT", -10, -6)
     local moments = {}
     for i = 1, 6 do
@@ -94,37 +94,37 @@ local function build(f)
     hint:SetWidth(330)
     local ask = W.Button(actions, "Ask in chat", 100, 22, function()
         UI:ShowTab("chat")
-        local r = AR.state.relationship[AR.state.selected or 0]
+        local r = TC.state.relationship[TC.state.selected or 0]
         local idx = r and r.stageIndex or 0
         local text = idx >= 6 and "Will you marry me?" or idx == 5 and "Will you marry me? Let's get engaged." or "Would you like to be my girlfriend?"
-        if AzerothRomanceChatInput then
-            AzerothRomanceChatInput:SetText(text)
-            AzerothRomanceChatInput:SetFocus()
+        if TrueCompanionChatInput then
+            TrueCompanionChatInput:SetText(text)
+            TrueCompanionChatInput:SetFocus()
         end
     end)
     ask:SetPoint("LEFT", setStage, "RIGHT", 10, 0)
 
     setStage:SetScript("OnClick", function()
-        local g = AR.state.selected
+        local g = TC.state.selected
         local st = stageDD:GetValue()
         if not g or not st then return end
         local label = st
         for _, it in ipairs(stageDD.items) do if it.value == st then label = it.text end end
-        local popup = StaticPopup_Show("AZEROTHROMANCE_SET_STAGE", label)
+        local popup = StaticPopup_Show("TRUECOMPANION_SET_STAGE", label)
         if popup then
             popup.data = function()
-                AR:Request("set_relationship", { guid = g, stage = st, romantic = romantic:GetChecked() and true or false,
+                TC:Request("set_relationship", { guid = g, stage = st, romantic = romantic:GetChecked() and true or false,
                     backstory = backstory:GetValue() }, function(msg)
-                    if msg.op == "ack" and not msg.ok then AR:Print("|cffff6060" .. AR:AckText(msg) .. "|r") end
+                    if msg.op == "ack" and not msg.ok then TC:Print("|cffff6060" .. TC:AckText(msg) .. "|r") end
                 end)
             end
         end
     end)
 
     function f:Refresh()
-        local g = AR.state.selected
-        local r = g and AR.state.relationship[g]
-        local hello = AR.state.hello
+        local g = TC.state.selected
+        local r = g and TC.state.relationship[g]
+        local hello = TC.state.hello
         local items = {}
         local maxStage = hello and hello.features and hello.features.maxInitialStage or 7
         for i, s in ipairs((hello and hello.stages) or {}) do
@@ -164,13 +164,13 @@ local function build(f)
     end
 
     function f:LoadMoments()
-        local g = AR.state.selected
+        local g = TC.state.selected
         for i = 1, 6 do moments[i]:SetText("") end
         if not g then return end
-        AR:Request("get_memories", { guid = g, kind = "relationship", limit = 4 }, function(msg)
+        TC:Request("get_memories", { guid = g, kind = "relationship", limit = 4 }, function(msg)
             if msg.op ~= "memories" then return end
             local items = msg.items or {}
-            AR:Request("get_memories", { guid = g, kind = "gift", limit = 2 }, function(m2)
+            TC:Request("get_memories", { guid = g, kind = "gift", limit = 2 }, function(m2)
                 for _, it in ipairs(m2.items or {}) do table.insert(items, it) end
                 for i = 1, 6 do
                     local it = items[i]
@@ -180,9 +180,9 @@ local function build(f)
         end)
     end
 
-    AR:On("RELATIONSHIP_CHANGED", function() if f:IsShown() then f:Refresh() end end)
-    AR:On("SELECTION_CHANGED", function() if f:IsShown() then f:Refresh() f:LoadMoments() end end)
-    AR:On("MEMORY_CHANGED", function() if f:IsShown() then f:LoadMoments() end end)
+    TC:On("RELATIONSHIP_CHANGED", function() if f:IsShown() then f:Refresh() end end)
+    TC:On("SELECTION_CHANGED", function() if f:IsShown() then f:Refresh() f:LoadMoments() end end)
+    TC:On("MEMORY_CHANGED", function() if f:IsShown() then f:LoadMoments() end end)
     f.OnShowTab = function()
         f:Refresh()
         f:LoadMoments()

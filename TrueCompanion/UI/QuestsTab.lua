@@ -1,5 +1,5 @@
 --[[
-  AzerothRomance - Quests tab: the quests of the whole group (you and your companions) and the quests
+  TrueCompanion - Quests tab: the quests of the whole group (you and your companions) and the quests
   available around, in one place.
 
   - Order: the order the leading companion does them on "lead the way". Move with Up / Down, then
@@ -12,30 +12,30 @@
     leading or selected companion if the quest giver is not close).
 ]]
 
-local AR = _G.AzerothRomance
-local W = AR.W
-local UI = AR.UI
+local TC = _G.TrueCompanion
+local W = TC.W
+local UI = TC.UI
 
 local QUEST_ROWS, AVAIL_ROWS = 8, 4
 local REFRESH_SECONDS = 10
 
 local Q = { quests = {}, available = {}, changed = false, page = 1, availPage = 1, levelCap = 0, companions = 0 }
-AR.GroupQuests = Q
+TC.GroupQuests = Q
 
 -- ---------------------------------------------------------------- ignored quests (per character)
 
 function Q:Ignored()
-    AzerothRomanceDB.ignoredQuests = AzerothRomanceDB.ignoredQuests or {}
-    local key = AR:CharKey()
-    AzerothRomanceDB.ignoredQuests[key] = AzerothRomanceDB.ignoredQuests[key] or {}
-    return AzerothRomanceDB.ignoredQuests[key]   -- [questId] = title
+    TrueCompanionDB.ignoredQuests = TrueCompanionDB.ignoredQuests or {}
+    local key = TC:CharKey()
+    TrueCompanionDB.ignoredQuests[key] = TrueCompanionDB.ignoredQuests[key] or {}
+    return TrueCompanionDB.ignoredQuests[key]   -- [questId] = title
 end
 
 function Q:SendIgnored()
     local ids = {}
     for id in pairs(self:Ignored()) do ids[#ids + 1] = tonumber(id) end
     table.sort(ids)
-    AR:Request("set_ignored_quests", { quests = ids })
+    TC:Request("set_ignored_quests", { quests = ids })
 end
 
 function Q:ToggleIgnore(id, title)
@@ -44,7 +44,7 @@ function Q:ToggleIgnore(id, title)
     self:SendIgnored()
 end
 
-AR:On("HELLO", function() Q:SendIgnored() end)
+TC:On("HELLO", function() Q:SendIgnored() end)
 
 -- ---------------------------------------------------------------- data
 
@@ -58,7 +58,7 @@ function Q:Load(data)
 end
 
 function Q:Request()
-    AR:Request("get_group_quests", {}, function(msg)
+    TC:Request("get_group_quests", {}, function(msg)
         if msg.op == "group_quests" then
             Q:Load(msg)
             if Q.frame and Q.frame:IsShown() then Q.frame:Render() end
@@ -77,12 +77,12 @@ function Q:Apply()
     local ids = {}
     for _, q in ipairs(self.quests) do ids[#ids + 1] = q.id end
     self.changed = false
-    AR:Request("set_group_quest_order", { quests = ids, apply = true }, function() Q:Request() end)
+    TC:Request("set_group_quest_order", { quests = ids, apply = true }, function() Q:Request() end)
 end
 
 function Q:ResetOrder()
     self.changed = false
-    AR:Request("set_group_quest_order", { quests = {}, apply = false }, function() Q:Request() end)
+    TC:Request("set_group_quest_order", { quests = {}, apply = false }, function() Q:Request() end)
 end
 
 local function names(list)
@@ -111,14 +111,14 @@ end
 -- Take: the companions take it (an ignored quest is unignored: you chose it)
 function Q:Take(a, done)
     if self:Ignored()[a.id] then self:ToggleIgnore(a.id, a.title) end
-    AR:Request("take_quest", { quest = a.id, guid = AR.state.selected }, function(msg)
+    TC:Request("take_quest", { quest = a.id, guid = TC.state.selected }, function(msg)
         if done then done(msg.result or "") end
         Q:Request()
     end)
 end
 
 function Q:Share(q, done)
-    AR:Request("share_quest", { quest = q.id }, function(msg)
+    TC:Request("share_quest", { quest = q.id }, function(msg)
         if done then done(msg.result or "") end
         Q:Request()
     end)
@@ -251,10 +251,10 @@ local function build(f)
                 if n == 1 then r.up:Disable() else r.up:Enable() end
                 if n == #Q.quests then r.down:Disable() else r.down:Enable() end
                 r.lead:SetScript("OnClick", function()
-                    local g = AR.state.selected
+                    local g = TC.state.selected
                     if not g then return say("Select the companion who should lead on the Companion tab.", true) end
-                    AR.state.typing[g] = true
-                    AR:Request("chat", { guid = g, text = "lead me to " .. (q.title or "") })
+                    TC.state.typing[g] = true
+                    TC:Request("chat", { guid = g, text = "lead me to " .. (q.title or "") })
                     say("Asked her to lead to \"" .. (q.title or "") .. "\".")
                 end)
                 local missing = names(q.missing)
@@ -283,7 +283,7 @@ local function build(f)
                         return f:Render()
                     end
                     armed[q.id] = nil
-                    AR:Request("abandon_quest", { quest = q.id }, function(msg)
+                    TC:Request("abandon_quest", { quest = q.id }, function(msg)
                         say(("\"%s\" abandoned by %d companion(s)."):format(q.title or "", tonumber(msg.abandoned) or 0))
                         Q:Request()
                     end)

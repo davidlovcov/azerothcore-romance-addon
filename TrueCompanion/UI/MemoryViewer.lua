@@ -1,14 +1,14 @@
 --[[
-  AzerothRomance - Memory viewer: inspect, filter, edit, pin, delete, add, clear,
+  TrueCompanion - Memory viewer: inspect, filter, edit, pin, delete, add, clear,
   export/import. Every change goes to the authoritative server storage.
 ]]
 
-local AR = _G.AzerothRomance
-local W = AR.W
-local UI = AR.UI
+local TC = _G.TrueCompanion
+local W = TC.W
+local UI = TC.UI
 
 local MV = {}
-AR.MemoryViewer = MV
+TC.MemoryViewer = MV
 
 local PAGE = 10
 local KINDS = {
@@ -21,7 +21,7 @@ local SOURCE_LABEL = {
     interpretation = "|cffaaaaaaher impression|r", user_edited = "|cff60d0ffedited by you|r", profile = "|cffffaaddbackstory|r",
 }
 
-StaticPopupDialogs["AZEROTHROMANCE_EDIT_MEMORY"] = {
+StaticPopupDialogs["TRUECOMPANION_EDIT_MEMORY"] = {
     text = "Edit memory:", button1 = SAVE, button2 = CANCEL, hasEditBox = 1, maxLetters = 300, hasWideEditBox = 1,
     timeout = 0, whileDead = true, hideOnEscape = true,
     OnShow = function(self, data)
@@ -42,12 +42,12 @@ StaticPopupDialogs["AZEROTHROMANCE_EDIT_MEMORY"] = {
     EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
 }
 
-StaticPopupDialogs["AZEROTHROMANCE_CONFIRM"] = {
+StaticPopupDialogs["TRUECOMPANION_CONFIRM"] = {
     text = "%s", button1 = YES, button2 = NO, timeout = 0, whileDead = true, hideOnEscape = true,
     OnAccept = function(self, data) if data then data() end end,
 }
 
-StaticPopupDialogs["AZEROTHROMANCE_RESET"] = {
+StaticPopupDialogs["TRUECOMPANION_RESET"] = {
     text = "This erases |cffff6060everything|r about this companion: personality, relationship, memories and chat history.\n\nType RESET to confirm.",
     button1 = OKAY, button2 = CANCEL, hasEditBox = 1, maxLetters = 8, timeout = 0, whileDead = true, hideOnEscape = true,
     OnAccept = function(self, data)
@@ -58,7 +58,7 @@ StaticPopupDialogs["AZEROTHROMANCE_RESET"] = {
 
 local function build()
     local f = W.Panel(UIParent, 640, 500, 0.97)
-    _G.AzerothRomanceMemoryFrame = f
+    _G.TrueCompanionMemoryFrame = f
     f:SetFrameStrata("DIALOG")
     f:SetPoint("CENTER", 40, -20)
     f:SetMovable(true)
@@ -67,7 +67,7 @@ local function build()
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     f:SetClampedToScreen(true)
-    tinsert(UISpecialFrames, "AzerothRomanceMemoryFrame")
+    tinsert(UISpecialFrames, "TrueCompanionMemoryFrame")
     local title = W.Label(f, "Memories", 15, W.GOLD, "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 14, -12)
     local who = W.Label(f, "", 11, W.MUTED)
@@ -124,10 +124,10 @@ local function build()
     nextB:SetPoint("LEFT", prev, "RIGHT", 6, 0)
 
     local add = W.Button(f, "Add memory", 100, 22, function()
-        local popup = StaticPopup_Show("AZEROTHROMANCE_EDIT_MEMORY")
+        local popup = StaticPopup_Show("TRUECOMPANION_EDIT_MEMORY")
         if popup then
             popup.data = { text = "", onAccept = function(text)
-                AR:Request("add_memory", { guid = MV.guid, kind = (kind:GetValue() ~= "" and kind:GetValue() ~= "summary") and kind:GetValue() or "fact",
+                TC:Request("add_memory", { guid = MV.guid, kind = (kind:GetValue() ~= "" and kind:GetValue() ~= "summary") and kind:GetValue() or "fact",
                     text = text, importance = 60 }, function() MV:Load() end)
             end }
         end
@@ -136,19 +136,19 @@ local function build()
     local clear = W.Button(f, "Clear shown kind", 120, 22, function()
         local k = kind:GetValue()
         local label = k == "" and "ALL memories" or ("all memories of this kind (" .. k .. ")")
-        local popup = StaticPopup_Show("AZEROTHROMANCE_CONFIRM", "Delete " .. label .. "?")
+        local popup = StaticPopup_Show("TRUECOMPANION_CONFIRM", "Delete " .. label .. "?")
         if popup then
             popup.data = function()
-                AR:Request("clear_memories", { guid = MV.guid, kind = k ~= "" and k or nil }, function() MV.offset = 0 MV:Load() end)
+                TC:Request("clear_memories", { guid = MV.guid, kind = k ~= "" and k or nil }, function() MV.offset = 0 MV:Load() end)
             end
         end
     end)
     clear:SetPoint("LEFT", add, "RIGHT", 6, 0)
     local reset = W.Button(f, "Full reset...", 100, 22, function()
-        local popup = StaticPopup_Show("AZEROTHROMANCE_RESET")
+        local popup = StaticPopup_Show("TRUECOMPANION_RESET")
         if popup then
             popup.data = function()
-                AR:Request("reset_companion", { guid = MV.guid, confirm = "RESET" }, function() MV.offset = 0 MV:Load() end)
+                TC:Request("reset_companion", { guid = MV.guid, confirm = "RESET" }, function() MV.offset = 0 MV:Load() end)
             end
         end
     end)
@@ -175,11 +175,11 @@ local function build()
     MV.frame, MV.rows, MV.kind, MV.search, MV.total, MV.who, MV.prev, MV.next = f, rows, kind, search, total, who, prev, nextB
     -- reload the list at most every 2 seconds, and not in the middle of an import / export
     local reloadAt
-    AR:On("MEMORY_CHANGED", function(g)
+    TC:On("MEMORY_CHANGED", function(g)
         if f:IsShown() and g == MV.guid and not reloadAt then reloadAt = GetTime() + 2 end
     end)
     f:HookScript("OnUpdate", function()
-        if reloadAt and GetTime() >= reloadAt and not AR.Transfer:Busy() then
+        if reloadAt and GetTime() >= reloadAt and not TC.Transfer:Busy() then
             reloadAt = nil
             if f:IsShown() then MV:Load() end
         end
@@ -191,19 +191,19 @@ end
 local MAX_SHOWN = 16000   -- the text box holds this many characters; bigger exports are only kept saved
 
 local function companionName(guid)
-    local c = AR:FindChar(guid)
+    local c = TC:FindChar(guid)
     return c and c.name or tostring(guid)
 end
 
 local function savedExports()
-    AzerothRomanceDB.exports = AzerothRomanceDB.exports or {}
-    return AzerothRomanceDB.exports
+    TrueCompanionDB.exports = TrueCompanionDB.exports or {}
+    return TrueCompanionDB.exports
 end
 
 -- Dialog that shows an export or takes an import.
 local function buildTransfer()
     local d = W.Panel(UIParent, 500, 360, 0.98)
-    _G.AzerothRomanceTransferFrame = d
+    _G.TrueCompanionTransferFrame = d
     d:SetFrameStrata("FULLSCREEN_DIALOG")
     d:SetPoint("CENTER", 0, 20)
     d:EnableMouse(true)
@@ -212,7 +212,7 @@ local function buildTransfer()
     d:SetScript("OnDragStart", d.StartMoving)
     d:SetScript("OnDragStop", d.StopMovingOrSizing)
     d:SetClampedToScreen(true)
-    tinsert(UISpecialFrames, "AzerothRomanceTransferFrame")
+    tinsert(UISpecialFrames, "TrueCompanionTransferFrame")
     d.title = W.Label(d, "", 14, W.GOLD, "GameFontNormalLarge")
     d.title:SetPoint("TOPLEFT", 14, -12)
     local close = CreateFrame("Button", nil, d, "UIPanelCloseButton")
@@ -286,7 +286,7 @@ function MV:ShowTransfer(mode, text, info)
     d.note:Hide()
     d.area:Show()
     d.saved:SetItems(items)
-    local last = AzerothRomanceDB.lastExport
+    local last = TrueCompanionDB.lastExport
     d.saved:SetValue(savedExports()[last or ""] and last or "")
     d.saved:Show()
     d.area:ClearAllPoints()
@@ -303,7 +303,7 @@ function MV:Export()
     local guid = self.guid
     local status = self.ioStatus
     status:SetText("Exporting...")
-    AR.Transfer:Export(guid, function(i, n) status:SetText(("Exporting part %d/%d..."):format(i, n)) end,
+    TC.Transfer:Export(guid, function(i, n) status:SetText(("Exporting part %d/%d..."):format(i, n)) end,
         function(text, count)
             if not text then
                 status:SetText("|cffff6060Export failed: " .. tostring(count) .. "|r")
@@ -311,14 +311,14 @@ function MV:Export()
             end
             local name = companionName(guid)
             savedExports()[name] = { at = time(), memories = count, text = text }
-            AzerothRomanceDB.lastExport = name
+            TrueCompanionDB.lastExport = name
             local size = ("%d memories, %.1f KB"):format(count or 0, #text / 1024)
             status:SetText("|cff60ff60Saved|r (" .. size .. ").")
             if #text <= MAX_SHOWN then
                 self:ShowTransfer("export", text, size)
             else
                 self:ShowTransfer("export", "", size .. " - too large to show here.\nIt is saved in the addon, and in " ..
-                    "WTF/Account/<account>/SavedVariables/AzerothRomance.lua after /reload.")
+                    "WTF/Account/<account>/SavedVariables/TrueCompanion.lua after /reload.")
             end
         end)
 end
@@ -342,7 +342,7 @@ function MV:RunImport()
     end
     d.go:Disable()
     d.status:SetText("Importing from " .. source .. "...")
-    AR.Transfer:Import(guid, text, function(i, n) d.status:SetText(("Importing part %d/%d..."):format(i, n)) end,
+    TC.Transfer:Import(guid, text, function(i, n) d.status:SetText(("Importing part %d/%d..."):format(i, n)) end,
         function(ok, result)
             d.go:Enable()
             if ok then
@@ -357,15 +357,15 @@ function MV:RunImport()
 end
 
 function MV:Open(guid)
-    guid = guid or AR.state.selected
+    guid = guid or TC.state.selected
     if not guid then
-        AR:Print("Select a companion first.")
+        TC:Print("Select a companion first.")
         return
     end
     if not self.frame then build() end
     self.guid = guid
     self.offset = 0
-    local c = AR:FindChar(guid)
+    local c = TC:FindChar(guid)
     self.who:SetText(c and ("of " .. c.name) or "")
     self.frame:Show()
     self:Load()
@@ -374,7 +374,7 @@ end
 function MV:Load()
     if not self.frame or not self.guid then return end
     local kind = self.kind:GetValue()
-    AR:Request("get_memories", { guid = self.guid, kind = kind ~= "" and kind or nil, search = self.search:GetValue(),
+    TC:Request("get_memories", { guid = self.guid, kind = kind ~= "" and kind or nil, search = self.search:GetValue(),
         offset = self.offset or 0, limit = PAGE }, function(msg)
         if msg.op ~= "memories" then return end
         self:Render(msg)
@@ -399,20 +399,20 @@ function MV:Render(msg)
                 tonumber(m.importance) or 0, date("%d.%m.%Y %H:%M", tonumber(m.createdAt) or 0)))
             r.pin:SetText(m.pinned and "Unpin" or "Pin")
             r.edit:SetScript("OnClick", function()
-                local popup = StaticPopup_Show("AZEROTHROMANCE_EDIT_MEMORY")
+                local popup = StaticPopup_Show("TRUECOMPANION_EDIT_MEMORY")
                 if popup then
                     popup.data = { text = m.text, onAccept = function(text)
-                        AR:Request("edit_memory", { guid = self.guid, id = m.id, text = text }, function() self:Load() end)
+                        TC:Request("edit_memory", { guid = self.guid, id = m.id, text = text }, function() self:Load() end)
                     end }
                     local eb = popup.wideEditBox or popup.editBox
                     eb:SetText(m.text)
                 end
             end)
             r.pin:SetScript("OnClick", function()
-                AR:Request("pin_memory", { guid = self.guid, id = m.id, pinned = not m.pinned }, function() self:Load() end)
+                TC:Request("pin_memory", { guid = self.guid, id = m.id, pinned = not m.pinned }, function() self:Load() end)
             end)
             r.del:SetScript("OnClick", function()
-                AR:Request("delete_memory", { guid = self.guid, id = m.id }, function() self:Load() end)
+                TC:Request("delete_memory", { guid = self.guid, id = m.id }, function() self:Load() end)
             end)
         end
     end

@@ -1,5 +1,5 @@
 --[[
-  AzerothRomance - Commands tab: one-click buttons for the common companion commands, your own
+  TrueCompanion - Commands tab: one-click buttons for the common companion commands, your own
   commands, and WoW macros made from any of them (to put on an action bar).
 
   A button sends its text exactly as if you had typed it: to the companion chosen under "Send to" (any
@@ -7,9 +7,9 @@
   works with this window closed.
 ]]
 
-local AR = _G.AzerothRomance
-local W = AR.W
-local UI = AR.UI
+local TC = _G.TrueCompanion
+local W = TC.W
+local UI = TC.UI
 
 local MAX_CUSTOM = 12
 local MACRO_ICON = 1   -- the question mark; another icon can be picked in the macro window (/macro)
@@ -31,30 +31,30 @@ local BUILTIN = {
     { "Sell junk", "sell your junk" },
     { "Bags?", "what's in your bags?" },
 }
-AR.BUILTIN_COMMANDS = BUILTIN
+TC.BUILTIN_COMMANDS = BUILTIN
 
 local function custom()
-    AzerothRomanceDB.commands = AzerothRomanceDB.commands or {}
-    return AzerothRomanceDB.commands
+    TrueCompanionDB.commands = TrueCompanionDB.commands or {}
+    return TrueCompanionDB.commands
 end
 
 -- "party", or the guid of the companion the commands go to (default: the one selected on the Companion tab)
 local function target()
-    local t = AzerothRomanceDB.commandTarget
+    local t = TrueCompanionDB.commandTarget
     if t == "party" then return "party" end
     local g = tonumber(t)
     if g then
-        local c = AR:FindChar(g)
+        local c = TC:FindChar(g)
         if c and c.active then return g end
     end
-    return AR.state.selected
+    return TC.state.selected
 end
-AR.CommandTarget = target
+TC.CommandTarget = target
 
 -- the companions that are with you right now (called, AI on)
 local function activeCompanions()
     local out = {}
-    for _, c in ipairs(AR.state.chars or {}) do
+    for _, c in ipairs(TC.state.chars or {}) do
         if c.active then out[#out + 1] = c end
     end
     return out
@@ -67,7 +67,7 @@ end
 local function trim(s) return ((s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
 
 -- Sends `text` to the selected companion, or in party chat to all of them. Returns true when sent.
-function AR:SendCommand(text)
+function TC:SendCommand(text)
     text = trim(text)
     if text == "" then return false, "Nothing to send." end
     if target() == "party" then
@@ -77,9 +77,9 @@ function AR:SendCommand(text)
     end
     local g = target()
     if not g then return false, "Choose a companion under \"Send to\" (or call one on the Companion tab)." end
-    AR.state.typing[g] = true
-    AR:Fire("TYPING_CHANGED", g)
-    AR:Request("chat", { guid = g, text = text })
+    TC.state.typing[g] = true
+    TC:Fire("TYPING_CHANGED", g)
+    TC:Request("chat", { guid = g, text = text })
     return true
 end
 
@@ -89,13 +89,13 @@ local function macroFor(label, text)
         return ("Party " .. label):sub(1, 16), "/p " .. text
     end
     local g = target()
-    local c = g and AR:FindChar(g)
+    local c = g and TC:FindChar(g)
     if not c or not c.name then return nil, "Choose a companion under \"Send to\" first." end
     return (c.name:sub(1, 6) .. " " .. label):sub(1, 16), "/w " .. c.name .. " " .. text
 end
 
 -- Creates the macro (or updates one with the same name). Returns its index, or nil and the reason.
-function AR:MakeMacro(label, text)
+function TC:MakeMacro(label, text)
     if InCombatLockdown() then return nil, "Macros can't be changed during combat." end
     local name, body = macroFor(label, trim(text))
     if not name then return nil, body end
@@ -120,7 +120,7 @@ local function build(f)
     local function say(text, bad) status:SetText(bad and ("|cffff6060" .. text .. "|r") or text) end
 
     local to = W.Dropdown(f, "Send to", 250, {}, function(v)
-        AzerothRomanceDB.commandTarget = v
+        TrueCompanionDB.commandTarget = v
         f:Render()
     end)
     to:SetPoint("TOPLEFT", 0, -2)
@@ -137,12 +137,12 @@ local function build(f)
     -- one click: send, or make a macro and put it on the cursor
     local function activate(label, text)
         if macroMode:GetChecked() then
-            local idx, info = AR:MakeMacro(label, text)
+            local idx, info = TC:MakeMacro(label, text)
             if not idx then return say(info, true) end
             PickupMacro(idx)
             return say(("Macro \"%s\" is on your cursor: drop it on an action bar."):format(info))
         end
-        local ok, err = AR:SendCommand(text)
+        local ok, err = TC:SendCommand(text)
         if ok then say("Sent: " .. text) else say(err, true) end
     end
 
@@ -204,7 +204,7 @@ local function build(f)
         for _, c in ipairs(BUILTIN) do list[#list + 1] = { c[1], c[2] } end
         for _, c in ipairs(custom()) do list[#list + 1] = { c.label, c.text } end
         for _, c in ipairs(list) do
-            local idx, info = AR:MakeMacro(c[1], c[2])
+            local idx, info = TC:MakeMacro(c[1], c[2])
             if idx then made = made + 1 else failed = info break end
         end
         if failed then
@@ -224,7 +224,7 @@ local function build(f)
         end
         local t = target()
         -- the selected companion is not with you (not called): still listed, so the choice is visible
-        local c = t ~= "party" and t and AR:FindChar(t)
+        local c = t ~= "party" and t and TC:FindChar(t)
         if c and not c.active then items[#items + 1] = { value = tostring(c.guid), text = c.name .. " (not called)" } end
         items[#items + 1] = { value = "party", text = "All companions (party chat)" }
         to:SetItems(items)
@@ -237,7 +237,7 @@ local function build(f)
                 row.send:SetScript("OnClick", function() activate(cmd.label, cmd.text) end)
                 W.Tooltip(row.send, cmd.label, "Says: \"" .. cmd.text .. "\"")
                 row.macro:SetScript("OnClick", function()
-                    local idx, info = AR:MakeMacro(cmd.label, cmd.text)
+                    local idx, info = TC:MakeMacro(cmd.label, cmd.text)
                     if not idx then return say(info, true) end
                     PickupMacro(idx)
                     say(("Macro \"%s\" is on your cursor: drop it on an action bar."):format(info))
@@ -258,8 +258,8 @@ local function build(f)
         end
     end
 
-    AR:On("SELECTION_CHANGED", function() if f:IsShown() then f:Render() end end)
-    AR:On("CHARS_CHANGED", function() if f:IsShown() then f:Render() end end)
+    TC:On("SELECTION_CHANGED", function() if f:IsShown() then f:Render() end end)
+    TC:On("CHARS_CHANGED", function() if f:IsShown() then f:Render() end end)
     f.OnShowTab = function() f:Render() end
 end
 

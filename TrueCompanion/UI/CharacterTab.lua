@@ -1,12 +1,12 @@
 --[[
-  AzerothRomance - Character tab: the selected companion's level, XP, gold,
+  TrueCompanion - Character tab: the selected companion's level, XP, gold,
   bags, gear, quests and spells (real game data from the server).
   Refreshes while the tab is open.
 ]]
 
-local AR = _G.AzerothRomance
-local W = AR.W
-local UI = AR.UI
+local TC = _G.TrueCompanion
+local W = TC.W
+local UI = TC.UI
 
 local REFRESH_SECONDS = 10
 
@@ -86,10 +86,10 @@ local function build(f)
     f.orderButton = orderButton
     -- same as typing "share your quests" in the chat: she shares every quest you don't have yet
     local share = W.Button(f, "Share quests", 100, 22, function()
-        local g = AR.state.selected
+        local g = TC.state.selected
         if not g then return end
-        AR.state.typing[g] = true
-        AR:Request("chat", { guid = g, text = "share your quests" })
+        TC.state.typing[g] = true
+        TC:Request("chat", { guid = g, text = "share your quests" })
         status:SetText("Asked her to share her quests.")
     end)
     share:SetPoint("RIGHT", refresh, "LEFT", -6, 0)
@@ -99,8 +99,8 @@ local function build(f)
     local elapsed = 0
 
     function f:Render()
-        local g, comp, char = AR:Selected()
-        sheet = g and AR.state.sheets[g]
+        local g, comp, char = TC:Selected()
+        sheet = g and TC.state.sheets[g]
         if not g then
             name:SetText("No companion selected")
             info:SetText("Select a companion on the Companion tab first.")
@@ -165,15 +165,15 @@ local function build(f)
     end
 
     function f:Request()
-        local g = AR.state.selected
+        local g = TC.state.selected
         if not g then
             f:Render()
             return
         end
         status:SetText("Updating...")
-        AR:Request("get_character_sheet", { guid = g }, function(msg)
+        TC:Request("get_character_sheet", { guid = g }, function(msg)
             if msg.op == "ack" and not msg.ok then
-                status:SetText("|cffff6060" .. AR:AckText(msg) .. "|r")
+                status:SetText("|cffff6060" .. TC:AckText(msg) .. "|r")
             else
                 status:SetText(("Updated %s"):format(date("%H:%M:%S")))
             end
@@ -188,8 +188,8 @@ local function build(f)
             f:Request()
         end
     end)
-    AR:On("SHEET_CHANGED", function(g) if f:IsShown() and g == AR.state.selected then f:Render() end end)
-    AR:On("SELECTION_CHANGED", function() if f:IsShown() then f:Render() f:Request() end end)
+    TC:On("SHEET_CHANGED", function(g) if f:IsShown() and g == TC.state.selected then f:Render() end end)
+    TC:On("SELECTION_CHANGED", function() if f:IsShown() then f:Render() f:Request() end end)
     f.OnShowTab = function()
         elapsed = 0
         f:Render()

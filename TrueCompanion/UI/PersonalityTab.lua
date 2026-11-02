@@ -1,5 +1,5 @@
 --[[
-  AzerothRomance - Personality tab: presets, identity, story, traits, response style.
+  TrueCompanion - Personality tab: presets, identity, story, traits, response style.
   The server sanitizes everything again (adult age, lengths, known styles).
 
   Presets are complete personalities. Applying one replaces every field except
@@ -8,9 +8,9 @@
   throws away unsaved edits.
 ]]
 
-local AR = _G.AzerothRomance
-local W = AR.W
-local UI = AR.UI
+local TC = _G.TrueCompanion
+local W = TC.W
+local UI = TC.UI
 
 local TRAITS = {
     { key = "outgoing", label = "Shy  /  Outgoing", low = "shy", high = "outgoing" },
@@ -52,13 +52,13 @@ local TEXT_FIELDS = {
 }
 
 local function presetById(id)
-    for _, p in ipairs(AR:Presets()) do
+    for _, p in ipairs(TC:Presets()) do
         if p.id == id then return p end
     end
 end
 
 local function build(f)
-    local scroll = CreateFrame("ScrollFrame", "AzerothRomancePersonalityScroll", f, "UIPanelScrollFrameTemplate")
+    local scroll = CreateFrame("ScrollFrame", "TrueCompanionPersonalityScroll", f, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 0, 0)
     scroll:SetPoint("BOTTOMRIGHT", -24, 40)
     local c = CreateFrame("Frame", nil, scroll)
@@ -87,7 +87,7 @@ local function build(f)
     local function ackText(okText)
         return function(msg)
             if msg.op == "ack" or msg.op == "presets" then
-                status:SetText(msg.ok and ("|cff60ff60" .. okText .. "|r") or ("|cffff6060" .. AR:AckText(msg) .. "|r"))
+                status:SetText(msg.ok and ("|cff60ff60" .. okText .. "|r") or ("|cffff6060" .. TC:AckText(msg) .. "|r"))
             end
         end
     end
@@ -104,11 +104,11 @@ local function build(f)
     end)
     preset:SetPoint("TOPLEFT", 0, y - 18)
     local applyPreset = W.Button(c, "Apply preset", 110, 22, function()
-        local g = AR.state.selected
+        local g = TC.state.selected
         local id = preset:GetValue()
         if not g or not id then return end
         status:SetText("Applying preset...")
-        AR:Request("apply_preset", { guid = g, preset = id }, ackText("Preset applied."))
+        TC:Request("apply_preset", { guid = g, preset = id }, ackText("Preset applied."))
     end)
     applyPreset:SetPoint("TOPLEFT", 310, y - 32)
     showAll = W.Check(c, "All genders", "Also list presets written for the other gender.")
@@ -204,7 +204,7 @@ local function build(f)
         if col == 2 then y = y - 24 end
     end
     y = y - 10
-    local romance = W.Check(c, "Romance possible", "Untick for a purely platonic companion (never progresses beyond close friends).")
+    local romance = W.Check(c, "Romantic relationship possible", "Untick for a purely platonic companion (never progresses beyond close friends).")
     romance:SetPoint("TOPLEFT", 4, y)
     local autoAccept = W.Check(c, "Always says yes to proposals", "Skip the relationship requirements for proposals. Off = the companion decides based on your relationship.")
     autoAccept:SetPoint("TOPLEFT", 244, y)
@@ -220,7 +220,7 @@ local function build(f)
 
     -- Gender of the selected companion: the personality's own setting, else the character's model.
     local function companionGender()
-        local _, comp, char = AR:Selected()
+        local _, comp, char = TC:Selected()
         local pg = (comp and comp.personality and comp.personality.gender or ""):lower()
         if pg == "female" or pg == "male" then return pg end
         if char and char.gender ~= nil then return tonumber(char.gender) == 1 and "female" or "male" end
@@ -229,7 +229,7 @@ local function build(f)
     function f:FillPresets()
         local gender = companionGender()
         local items = {}
-        for _, pr in ipairs(AR:Presets()) do
+        for _, pr in ipairs(TC:Presets()) do
             local fits = showAll:GetChecked() or pr.custom or not gender or (pr.gender or "") == "" or pr.gender == gender
             if fits or pr.id == current.preset then
                 items[#items + 1] = { value = pr.id, text = (pr.custom and "|cffffd100*|r " or "") .. pr.label }
@@ -242,7 +242,7 @@ local function build(f)
         local p = sel and presetById(sel)
         presetDesc:SetText(p and (p.description or "") or "")
         if p and p.custom then deletePreset:Enable() else deletePreset:Disable() end
-        if AR.state.selected and current.preset and current.preset ~= "" and presetById(current.preset) then
+        if TC.state.selected and current.preset and current.preset ~= "" and presetById(current.preset) then
             resetPreset:Enable()
         else
             resetPreset:Disable()
@@ -251,7 +251,7 @@ local function build(f)
     showAll:HookScript("OnClick", function() f:FillPresets() end)
 
     function f:Load()
-        local g, comp = AR:Selected()
+        local g, comp = TC:Selected()
         local p = (comp and comp.personality) or {}
         current = p
         preset:SetValue(p.preset ~= "" and p.preset or nil)
@@ -284,7 +284,7 @@ local function build(f)
         p.length = length:GetValue() or "varied"
         p.language = language:GetValue() or "auto"
         p.formal = formal:GetChecked() and true or false
-        p.styles = AR.Json.Array({})
+        p.styles = TC.Json.Array({})
         for _, st in ipairs(STYLES) do
             if styleChecks[st.id]:GetChecked() then table.insert(p.styles, st.id) end
         end
@@ -292,12 +292,12 @@ local function build(f)
         p.autoAcceptProposals = autoAccept:GetChecked() and true or false
         -- the preset a personality came from; the dropdown is only a picker for "Apply"
         p.preset = current.preset or ""
-        p.stageLabels = current.stageLabels or AR.Json.Array({})
+        p.stageLabels = current.stageLabels or TC.Json.Array({})
         return p
     end
 
     save:SetScript("OnClick", function()
-        local g = AR.state.selected
+        local g = TC.state.selected
         if not g then return end
         local p = f:Collect()
         if p.age < 18 then
@@ -305,10 +305,10 @@ local function build(f)
             return
         end
         status:SetText("Saving...")
-        AR:Request("save_personality", { guid = g, personality = p }, function(msg)
+        TC:Request("save_personality", { guid = g, personality = p }, function(msg)
             if msg.op == "ack" then
                 local notes = msg.notes and #msg.notes > 0 and (" (" .. table.concat(msg.notes, ", ") .. ")") or ""
-                status:SetText(msg.ok and ("|cff60ff60Saved.|r" .. notes) or ("|cffff6060" .. AR:AckText(msg) .. "|r"))
+                status:SetText(msg.ok and ("|cff60ff60Saved.|r" .. notes) or ("|cffff6060" .. TC:AckText(msg) .. "|r"))
             end
         end)
     end)
@@ -319,14 +319,14 @@ local function build(f)
     end)
 
     resetPreset:SetScript("OnClick", function()
-        local g = AR.state.selected
+        local g = TC.state.selected
         if not g or not current.preset or current.preset == "" then return end
         status:SetText("Resetting to preset...")
-        AR:Request("apply_preset", { guid = g, preset = current.preset }, ackText("Back to the preset's defaults."))
+        TC:Request("apply_preset", { guid = g, preset = current.preset }, ackText("Back to the preset's defaults."))
     end)
 
     randomStory:SetScript("OnClick", function()
-        for key, v in pairs(AR.Random.CompanionStory(companionGender())) do
+        for key, v in pairs(TC.Random.CompanionStory(companionGender())) do
             if fields[key] then fields[key]:SetValue(v) end
         end
         status:SetText("Random story filled in - press Save to keep it.")
@@ -343,10 +343,10 @@ local function build(f)
         -- saving under the name of the selected custom preset overwrites it
         local replace = (existing and existing.custom and existing.label == label) and existing.id or nil
         local who = (current.name and current.name ~= "") and current.name or "a companion"
-        AR:Request("save_preset", { label = label, description = "Saved from " .. who .. ".", personality = f:Collect(), replace = replace },
+        TC:Request("save_preset", { label = label, description = "Saved from " .. who .. ".", personality = f:Collect(), replace = replace },
             function(msg)
                 if msg.op ~= "presets" then return end
-                status:SetText(msg.ok and ("|cff60ff60Preset \"" .. label .. "\" saved.|r") or ("|cffff6060" .. AR:AckText(msg) .. "|r"))
+                status:SetText(msg.ok and ("|cff60ff60Preset \"" .. label .. "\" saved.|r") or ("|cffff6060" .. TC:AckText(msg) .. "|r"))
                 if msg.ok and msg.savedId and msg.savedId ~= "" then preset:SetValue(msg.savedId) end
                 f:FillPresets()
             end)
@@ -356,17 +356,17 @@ local function build(f)
         local sel = preset:GetValue()
         local p = sel and presetById(sel)
         if not p or not p.custom then return end
-        AR:Request("delete_preset", { preset = sel }, function(msg)
+        TC:Request("delete_preset", { preset = sel }, function(msg)
             if msg.op ~= "presets" then return end
-            status:SetText(msg.ok and ("Preset \"" .. p.label .. "\" deleted.") or ("|cffff6060" .. AR:AckText(msg) .. "|r"))
+            status:SetText(msg.ok and ("Preset \"" .. p.label .. "\" deleted.") or ("|cffff6060" .. TC:AckText(msg) .. "|r"))
             preset:SetValue(nil)
             f:FillPresets()
         end)
     end)
 
-    AR:On("PRESETS_CHANGED", function() if f:IsShown() then f:FillPresets() end end)
-    AR:On("COMPANION_CHANGED", function(g) if g == AR.state.selected and f:IsShown() then f:Load() end end)
-    AR:On("SELECTION_CHANGED", function() if f:IsShown() then f:Load() end end)
+    TC:On("PRESETS_CHANGED", function() if f:IsShown() then f:FillPresets() end end)
+    TC:On("COMPANION_CHANGED", function(g) if g == TC.state.selected and f:IsShown() then f:Load() end end)
+    TC:On("SELECTION_CHANGED", function() if f:IsShown() then f:Load() end end)
     f.OnShowTab = function() f:Load() end
 end
 

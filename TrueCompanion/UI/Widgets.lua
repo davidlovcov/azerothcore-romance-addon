@@ -1,11 +1,11 @@
 --[[
-  AzerothRomance - widget helpers (WoW 3.3.5a API only)
+  TrueCompanion - widget helpers (WoW 3.3.5a API only)
   Dark panels with gold accents built from stock 3.3.5 textures.
 ]]
 
-local AR = _G.AzerothRomance
+local TC = _G.TrueCompanion
 local W = {}
-AR.W = W
+TC.W = W
 
 W.GOLD = { 1.0, 0.82, 0.25 }
 W.GOLD_DIM = { 0.75, 0.6, 0.25 }
@@ -116,7 +116,7 @@ function W.TextArea(parent, caption, w, h, maxLetters)
     holder.caption:SetPoint("TOPLEFT", 2, 0)
     local bg = W.Panel(holder, w, h, 0.6)
     bg:SetPoint("TOPLEFT", 0, -14)
-    local scroll = CreateFrame("ScrollFrame", "AzerothRomanceTextArea" .. areaCount, bg, "UIPanelScrollFrameTemplate")
+    local scroll = CreateFrame("ScrollFrame", "TrueCompanionTextArea" .. areaCount, bg, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 6, -6)
     scroll:SetPoint("BOTTOMRIGHT", -26, 6)
     local e = CreateFrame("EditBox", nil, scroll)
@@ -149,7 +149,7 @@ end
 local sliderCount = 0
 function W.Slider(parent, caption, w, minV, maxV, step, lowText, highText)
     sliderCount = sliderCount + 1
-    local name = "AzerothRomanceSlider" .. sliderCount
+    local name = "TrueCompanionSlider" .. sliderCount
     local s = CreateFrame("Slider", name, parent, "OptionsSliderTemplate")
     s:SetWidth(w)
     s:SetHeight(16)
@@ -174,7 +174,7 @@ end
 local checkCount = 0
 function W.Check(parent, caption, tooltip)
     checkCount = checkCount + 1
-    local c = CreateFrame("CheckButton", "AzerothRomanceCheck" .. checkCount, parent, "UICheckButtonTemplate")
+    local c = CreateFrame("CheckButton", "TrueCompanionCheck" .. checkCount, parent, "UICheckButtonTemplate")
     c:SetWidth(24)
     c:SetHeight(24)
     local label = _G[c:GetName() .. "Text"]
@@ -201,7 +201,7 @@ function W.Dropdown(parent, caption, w, items, onSelect)
     holder:SetHeight(44)
     holder.caption = W.Label(holder, caption, 11, W.GOLD_DIM)
     holder.caption:SetPoint("TOPLEFT", 2, 0)
-    local dd = CreateFrame("Frame", "AzerothRomanceDropdown" .. ddCount, holder, "UIDropDownMenuTemplate")
+    local dd = CreateFrame("Frame", "TrueCompanionDropdown" .. ddCount, holder, "UIDropDownMenuTemplate")
     dd:SetPoint("TOPLEFT", -16, -12)
     UIDropDownMenu_SetWidth(dd, w - 40)
     holder.dd = dd
@@ -277,7 +277,7 @@ end
 
 -- Class icon texture coordinates from the stock character-create sheet.
 function W.SetClassIcon(tex, classId)
-    local token = AR.CLASS_TOKENS[tonumber(classId) or 0]
+    local token = TC.CLASS_TOKENS[tonumber(classId) or 0]
     tex:SetTexture("Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes")
     local c = token and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[token]
     if c then
