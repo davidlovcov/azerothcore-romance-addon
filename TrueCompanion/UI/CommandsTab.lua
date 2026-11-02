@@ -30,6 +30,7 @@ local BUILTIN = {
     { "Share quests", "share your quests", true },
     { "Sell junk", "sell your junk", true },
     { "Bags?", "what's in your bags?", true },
+    { "Learn spells", "learn your spells", true },
 }
 TC.BUILTIN_COMMANDS = BUILTIN
 
@@ -161,7 +162,7 @@ local function build(f)
     end
     local more = W.Button(left, "", 172, 20)
     more:SetPoint("BOTTOMLEFT", 8, 8)
-    W.Tooltip(more, "More commands", "Go on, attack your target, accept a quest, share quests, sell junk, ask what's in her bags.")
+    W.Tooltip(more, "More commands", "Go on, attack your target, accept a quest, share quests, sell junk, ask what's in her bags, learn new spells at her trainer.")
     local function showMore()
         local open = TC.db.showMoreCommands and true or false
         for i, cmd in ipairs(BUILTIN) do

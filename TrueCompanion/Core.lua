@@ -351,7 +351,7 @@ TC.STATUS_INFO = {
     controlled_elsewhere = { label = "Controlled elsewhere",  color = { 0.55, 0.55, 0.55 }, enabled = false },
     unavailable          = { label = "Unavailable",           color = { 0.55, 0.55, 0.55 }, enabled = false },
     offline              = { label = "Offline",               color = { 0.55, 0.55, 0.55 }, enabled = false },
-    ai_disabled          = { label = "AI companion disabled", color = { 0.70, 0.60, 0.80 }, enabled = true },
+    ai_disabled          = { label = "AI off (commands)", color = { 0.70, 0.60, 0.80 }, enabled = true },
 }
 
 -- Status of a character entry, including estrangement (she left you / came back cold).
@@ -408,6 +408,7 @@ end
 
 local LEAD_KIND = {
     turn_in = "to turn in quests", pick_up = "for new quests", take = "to take a quest", merchant = "to sell junk",
+    trainer = "to learn spells",
 }
 
 -- "Rindronor leads to "Solanian's Belongings" (260 yd south)", "You lead", or "" when unknown.

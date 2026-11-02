@@ -7,6 +7,8 @@
 - Your settings come along if you rename the saved variables file (README, "Upgrading from AzerothRomance"); memory exports made before the rename can still be imported.
 
 ### Added
+- Commands tab: "Learn spells" (under More commands): she goes to her class trainer. The Character tab hint says so too.
+- A companion with her AI conversation off is shown as "AI off - commands only": she still carries out commands (needs mod-true-companion 97ea6f8).
 - The window header shows who leads and where to ("Rindronor leads to "Solanian's Belongings" (260 yd south)", "You lead"), and which companion is off on an errand.
 - Character tab: spells she can learn now (with the cost at her class trainer) and soon, above the known ones; the hint says how to learn them ("!trainer learn" with the trainer targeted).
 - Simpler by default; the extras are one click away and the addon remembers what you opened:

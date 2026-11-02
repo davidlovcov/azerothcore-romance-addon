@@ -225,7 +225,7 @@ local function build(f)
             local aiOn = not comp or not comp.settings or comp.settings.aiEnabled ~= false
             local online = TC:OllamaOnline()
             local present = char.status == "in_party" or char.status == "summoned"
-            local aiText = not aiOn and "|cffaaaaaaoff|r" or (char.active and "|cff60ff60active|r")
+            local aiText = not aiOn and "|cffaaaaaaoff - commands only|r" or (char.active and "|cff60ff60active|r")
                 or (present and "|cffffd100not active yet|r") or "|cff60ff60on (starts when called)|r"
             local feat = TC.state.hello and TC.state.hello.features or {}
             local ollama = feat.ollama == false and "|cffaaaaaaoff on this server|r - commands work, no conversation"

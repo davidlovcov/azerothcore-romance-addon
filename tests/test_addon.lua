@@ -772,6 +772,8 @@ do
         "You lead; Myron is off to Jainthess Thelryn", "lead text: you lead, an errand")
     check(TC:LeadText({}) == "", "lead text: unknown")
     check(TC:LeadText({ you = true, fighting = true }) == "You lead - fighting here", "lead text: clearing the area with you")
+    check(TC:LeadText({ leader = "Myron", kind = "trainer", target = "Pathstalker Kariel", distance = 80, direction = "west" }) ==
+        "Myron leads to Pathstalker Kariel to learn spells (80 yd west)", "lead text: off to the trainer (with the group)")
 
     -- the header shows it with the companions
     local saved = TC.state.chars

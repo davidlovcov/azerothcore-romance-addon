@@ -74,8 +74,8 @@ local function build(f)
     gear:SetPoint("TOPLEFT", 0, -252)
 
     local hint = W.Label(f, "Ask in chat: \"what's in your bags?\", \"give me your linen cloth\", \"share your quests\", " ..
-        "\"lead the way\"... See COMMANDS.md for the full list.\n\nNew spells: target her class trainer and whisper her " ..
-        "\"!trainer learn\".", 10, W.MUTED)
+        "\"lead the way\"... See COMMANDS.md for the full list.\n\nNew spells: tell her \"learn your spells\"; she goes to " ..
+        "her class trainer and comes back.", 10, W.MUTED)
     hint:SetPoint("TOPLEFT", 508, -256)
     hint:SetWidth(248)
 

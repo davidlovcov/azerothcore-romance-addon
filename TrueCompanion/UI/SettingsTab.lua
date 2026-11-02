@@ -16,7 +16,7 @@ local function build(f)
     who:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, -4)
 
     -- the basics: what most players change
-    local ai = W.Check(left, "AI conversation enabled", "Off = a regular Playerbot (no Ollama requests at all).")
+    local ai = W.Check(left, "AI conversation enabled", "Off = no conversation and no Ollama requests; she still carries out commands and answers them in plain words.")
     ai:SetPoint("TOPLEFT", 10, -44)
     local party = W.Check(left, "Answer in party chat", "Reply in party chat instead of whispering you.")
     party:SetPoint("TOPLEFT", 10, -68)
