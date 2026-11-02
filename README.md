@@ -16,12 +16,18 @@ World of Warcraft **3.3.5a** addon (Interface 30300) for the AzerothCore module 
 
 | | |
 |---|---|
-| ![Chat](docs/images/chat.jpg) | ![Character sheet](docs/images/character.jpg) |
-| **Chat** with your companion | **Character**: bags, gear, quests, spells |
-| ![Personality](docs/images/personality.jpg) | ![Player profile](docs/images/player-profile.jpg) |
-| **Personality** with presets and randomizer | **Player Profile**: who you are in the roleplay |
-| ![Relationship](docs/images/relationship.jpg) | ![Settings](docs/images/settings.jpg) |
-| **Relationship** values and stages | **Settings** per companion |
+| ![Commands](docs/images/commands.jpg) | ![Quests](docs/images/quests.jpg) |
+| **Commands**: one click for everyday orders, your own commands and macros | **Quests**: the group's quests, a quest order, lead, share and take |
+| ![Character sheet](docs/images/character.jpg) | ![Personality](docs/images/personality.jpg) |
+| **Character**: bags, gear, quests, spells to learn | **Personality** with presets and randomizer |
+| ![Player profile](docs/images/player-profile.jpg) | ![Relationship](docs/images/relationship.jpg) |
+| **Player Profile**: who you are in the roleplay | **Relationship** values, stages and significant moments |
+| ![Settings](docs/images/settings.jpg) | ![Debug](docs/images/debug.jpg) |
+| **Settings** per companion, and the server's status | **Debug**: Ollama, queue and the model's last raw answer |
+
+Several companions in party chat, each answering for themselves:
+
+![Party chat](docs/images/party-chat.jpg)
 
 **Memories**: everything your companion remembers, with source and importance. Edit, pin, delete, add, export or import.
 
