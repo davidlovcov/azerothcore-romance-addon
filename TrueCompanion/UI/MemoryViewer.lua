@@ -10,6 +10,11 @@ local UI = TC.UI
 local MV = {}
 TC.MemoryViewer = MV
 
+local function companionName(guid)
+    local c = TC:FindChar(guid)
+    return c and c.name or tostring(guid)
+end
+
 local PAGE = 10
 local KINDS = {
     { value = "", text = "All memories" }, { value = "fact", text = "Facts" }, { value = "preference", text = "Preferences" },
@@ -48,7 +53,7 @@ StaticPopupDialogs["TRUECOMPANION_CONFIRM"] = {
 }
 
 StaticPopupDialogs["TRUECOMPANION_RESET"] = {
-    text = "This erases |cffff6060everything|r about this companion: personality, relationship, memories and chat history.\n\nType RESET to confirm.",
+    text = "This erases |cffff6060everything|r about %s: personality, relationship, memories and chat history.\n\nType RESET to confirm.",
     button1 = OKAY, button2 = CANCEL, hasEditBox = 1, maxLetters = 8, timeout = 0, whileDead = true, hideOnEscape = true,
     OnAccept = function(self, data)
         local eb = self.editBox
@@ -123,36 +128,49 @@ local function build()
     local nextB = W.Button(f, "Older >", 80, 22, function() MV.offset = MV.offset + PAGE MV:Load() end)
     nextB:SetPoint("LEFT", prev, "RIGHT", 6, 0)
 
+    -- Every operation is bound to the companion it was opened for: switching the viewer to another companion
+    -- before confirming never redirects it.
     local add = W.Button(f, "Add memory", 100, 22, function()
+        local guid = MV.guid
+        if not guid then return end
+        local k = kind:GetValue()
         local popup = StaticPopup_Show("TRUECOMPANION_EDIT_MEMORY")
         if popup then
-            popup.data = { text = "", onAccept = function(text)
-                TC:Request("add_memory", { guid = MV.guid, kind = (kind:GetValue() ~= "" and kind:GetValue() ~= "summary") and kind:GetValue() or "fact",
-                    text = text, importance = 60 }, function() MV:Load() end)
+            popup.data = { text = "", guid = guid, onAccept = function(text)
+                TC:Request("add_memory", { guid = guid, kind = (k ~= "" and k ~= "summary") and k or "fact",
+                    text = text, importance = 60 }, function() MV:Reload(guid) end)
             end }
         end
     end)
     add:SetPoint("LEFT", nextB, "RIGHT", 20, 0)
     local clear = W.Button(f, "Clear shown kind", 120, 22, function()
+        local guid = MV.guid
+        if not guid then return end
         local k = kind:GetValue()
         local label = k == "" and "ALL memories" or ("all memories of this kind (" .. k .. ")")
-        local popup = StaticPopup_Show("TRUECOMPANION_CONFIRM", "Delete " .. label .. "?")
+        local popup = StaticPopup_Show("TRUECOMPANION_CONFIRM", "Delete " .. label .. " of " .. companionName(guid) .. "?")
         if popup then
+            popup.guid = guid
             popup.data = function()
-                TC:Request("clear_memories", { guid = MV.guid, kind = k ~= "" and k or nil }, function() MV.offset = 0 MV:Load() end)
+                TC:Request("clear_memories", { guid = guid, kind = k ~= "" and k or nil }, function() MV:Reload(guid, true) end)
             end
         end
     end)
     clear:SetPoint("LEFT", add, "RIGHT", 6, 0)
+    MV.addButton, MV.clearButton = add, clear
     local reset = W.Button(f, "Full reset...", 100, 22, function()
-        local popup = StaticPopup_Show("TRUECOMPANION_RESET")
+        local guid = MV.guid
+        if not guid then return end
+        local popup = StaticPopup_Show("TRUECOMPANION_RESET", companionName(guid))
         if popup then
+            popup.guid = guid
             popup.data = function()
-                TC:Request("reset_companion", { guid = MV.guid, confirm = "RESET" }, function() MV.offset = 0 MV:Load() end)
+                TC:Request("reset_companion", { guid = guid, confirm = "RESET" }, function() MV:Reload(guid, true) end)
             end
         end
     end)
     reset:SetPoint("LEFT", clear, "RIGHT", 6, 0)
+    MV.resetButton = reset
 
     -- backup: export / import (the text itself lives in a separate dialog)
     local ioLabel = W.Label(f, "Backup", 11, W.GOLD_DIM)
@@ -190,10 +208,6 @@ end
 
 local MAX_SHOWN = 16000   -- the text box holds this many characters; bigger exports are only kept saved
 
-local function companionName(guid)
-    local c = TC:FindChar(guid)
-    return c and c.name or tostring(guid)
-end
 
 local function savedExports()
     TrueCompanionDB.exports = TrueCompanionDB.exports or {}
@@ -240,11 +254,12 @@ local function buildTransfer()
     return d
 end
 
-function MV:ShowTransfer(mode, text, info)
+function MV:ShowTransfer(mode, text, info, guid)
     local d = self.transfer or buildTransfer()
     self.transfer = d
     d.mode = mode
-    local name = companionName(self.guid)
+    d.guid = guid or self.guid   -- the import goes to this companion, even if the viewer switches meanwhile
+    local name = companionName(d.guid)
     d.status:SetText("")
     if mode == "export" then
         d.title:SetText("Export of " .. name)
@@ -315,18 +330,18 @@ function MV:Export()
             local size = ("%d memories, %.1f KB"):format(count or 0, #text / 1024)
             status:SetText("|cff60ff60Saved|r (" .. size .. ").")
             if #text <= MAX_SHOWN then
-                self:ShowTransfer("export", text, size)
+                self:ShowTransfer("export", text, size, guid)
             else
                 self:ShowTransfer("export", "", size .. " - too large to show here.\nIt is saved in the addon, and in " ..
-                    "WTF/Account/<account>/SavedVariables/TrueCompanion.lua after /reload.")
+                    "WTF/Account/<account>/SavedVariables/TrueCompanion.lua after /reload.", guid)
             end
         end)
 end
 
 function MV:RunImport()
     local d = self.transfer
-    local guid = self.guid
-    if not d or not guid then return end
+    local guid = d and d.guid
+    if not d or not guid or d.mode ~= "import" then return end
     local text, source = d.area:GetValue(), "the pasted text"
     if text == "" then
         local pick = d.saved:GetValue()
@@ -343,13 +358,17 @@ function MV:RunImport()
     d.go:Disable()
     d.status:SetText("Importing from " .. source .. "...")
     TC.Transfer:Import(guid, text, function(i, n) d.status:SetText(("Importing part %d/%d..."):format(i, n)) end,
-        function(ok, result)
+        function(ok, result, unknown)
             d.go:Enable()
             if ok then
                 d.status:SetText("|cff60ff60Done:|r " .. table.concat(result or {}, ", "))
                 self.ioStatus:SetText("|cff60ff60Imported:|r " .. table.concat(result or {}, ", "))
-                self.offset = 0
-                self:Load()
+                self:Reload(guid, true)
+            elseif unknown then
+                -- the server may have applied it and only the answer got lost: look instead of claiming nothing changed
+                d.status:SetText("|cffff6060No answer from the server.|r It may or may not have been applied; check the list " ..
+                    "before importing again.")
+                self:Reload(guid, true)
             else
                 d.status:SetText("|cffff6060Import failed, nothing was changed: " .. tostring(result) .. "|r")
             end
@@ -363,6 +382,10 @@ function MV:Open(guid)
         return
     end
     if not self.frame then build() end
+    if self.guid ~= guid then
+        self.loadGen = (self.loadGen or 0) + 1   -- whatever is still on its way for the old companion is dropped
+        self:Render({ items = {}, total = 0 }, guid)
+    end
     self.guid = guid
     self.offset = 0
     local c = TC:FindChar(guid)
@@ -371,17 +394,27 @@ function MV:Open(guid)
     self:Load()
 end
 
+-- Reloads after an operation on `guid`, but only if the viewer still shows that companion.
+function MV:Reload(guid, toFirstPage)
+    if guid ~= self.guid then return end
+    if toFirstPage then self.offset = 0 end
+    self:Load()
+end
+
+-- Only the newest request is rendered: a late answer for another companion, filter, search or page is dropped.
 function MV:Load()
     if not self.frame or not self.guid then return end
+    self.loadGen = (self.loadGen or 0) + 1
+    local gen, guid = self.loadGen, self.guid
     local kind = self.kind:GetValue()
-    TC:Request("get_memories", { guid = self.guid, kind = kind ~= "" and kind or nil, search = self.search:GetValue(),
+    TC:Request("get_memories", { guid = guid, kind = kind ~= "" and kind or nil, search = self.search:GetValue(),
         offset = self.offset or 0, limit = PAGE }, function(msg)
-        if msg.op ~= "memories" then return end
-        self:Render(msg)
+        if msg.op ~= "memories" or gen ~= self.loadGen or guid ~= self.guid then return end
+        self:Render(msg, guid)
     end)
 end
 
-function MV:Render(msg)
+function MV:Render(msg, guid)
     local items = msg.items or {}
     local n = tonumber(msg.total) or 0
     self.total:SetText(("%d memories"):format(n))
@@ -401,18 +434,18 @@ function MV:Render(msg)
             r.edit:SetScript("OnClick", function()
                 local popup = StaticPopup_Show("TRUECOMPANION_EDIT_MEMORY")
                 if popup then
-                    popup.data = { text = m.text, onAccept = function(text)
-                        TC:Request("edit_memory", { guid = self.guid, id = m.id, text = text }, function() self:Load() end)
+                    popup.data = { text = m.text, guid = guid, onAccept = function(text)
+                        TC:Request("edit_memory", { guid = guid, id = m.id, text = text }, function() self:Reload(guid) end)
                     end }
                     local eb = popup.wideEditBox or popup.editBox
                     eb:SetText(m.text)
                 end
             end)
             r.pin:SetScript("OnClick", function()
-                TC:Request("pin_memory", { guid = self.guid, id = m.id, pinned = not m.pinned }, function() self:Load() end)
+                TC:Request("pin_memory", { guid = guid, id = m.id, pinned = not m.pinned }, function() self:Reload(guid) end)
             end)
             r.del:SetScript("OnClick", function()
-                TC:Request("delete_memory", { guid = self.guid, id = m.id }, function() self:Load() end)
+                TC:Request("delete_memory", { guid = guid, id = m.id }, function() self:Reload(guid) end)
             end)
         end
     end

@@ -106,6 +106,7 @@ function StaticPopup_Show(which, a1)
     local p = newFrame("Frame", nil, UIParent)
     p.editBox = newFrame("EditBox", nil, p)
     p.which = which
+    p.arg1 = a1
     table.insert(stub.popups, p)
     return p
 end

@@ -91,7 +91,7 @@ local function build(f)
     local share = W.Button(f, "Share quests", 100, 22, function()
         local g = TC.state.selected
         if not g then return end
-        TC.state.typing[g] = true
+        TC:SetTyping(g, true)
         TC:Request("chat", { guid = g, text = "share your quests" })
         status:SetText("Asked her to share her quests.")
     end)

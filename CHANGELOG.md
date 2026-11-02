@@ -29,6 +29,15 @@
 - Settings tab shows the addon and the server module version, and warns when they differ.
 
 ### Fixed
+- "is thinking..." could stay on forever when the server's "typing off" got lost (server restart, reload) or after a line that went to Playerbots. It is cleared by every error that means no answer is coming and expires on its own after 100 seconds; the Commands, Quests and Character tabs use the same indicator.
+- Numbers sent to the server: integers above 2^31 could wrap in the 32-bit Windows client, and fractions were rounded to 6 digits.
+- `/tc status` showed a stray space when the server reported no Ollama version.
+- Memory viewer: reset, clear, add, edit and import stay with the companion they were opened for; switching the viewer to another companion before confirming no longer redirects them. Confirmations name the companion.
+- Memory viewer: a late answer for another companion, filter or page no longer replaces the list shown (it could show one companion's memories under another's name, and row buttons then acted on the wrong one).
+- Export / import: a transfer that timed out could, with a late answer, end the next transfer or send a stale retry. Every answer and retry now belongs to its own transfer, each ends exactly once, and a timeout cancels its retries.
+- Export: all pages must come from the same server snapshot; a mixed export is refused.
+- Import: when the answer to the last step is lost, it says the outcome is unknown and reloads the list (before: "nothing was changed", which may not be true).
+- Protocol: a duplicate chunk that replaced a shorter or longer one kept the old size against the message limit.
 - Chat tab: a message the AI can't answer (Ollama off, or her AI conversation off) left the "thinking" dots running forever; they stop now and the reason is printed.
 - The leader line stopped updating for the whole session after one "too many requests"; only a server that doesn't know the request stops it now.
 - Character tab: says when she can't afford the spells she could learn ("she has only ...").

@@ -19,7 +19,8 @@ TC.state = {
     companions = {},     -- guid -> companion payload
     sheets = {},         -- guid -> character sheet (bags, quests, spells, ...)
     relationship = {},   -- guid -> relationship payload
-    typing = {},         -- guid -> true
+    typing = {},         -- guid -> true (see TC:SetTyping)
+    typingSince = {},    -- guid -> GetTime() when the indicator was switched on
     selected = nil,      -- selected companion guid
     profile = nil,
     profileIsDefault = true,
@@ -178,13 +179,34 @@ handlers.milestone = function(msg)
     TC:Fire("RELATIONSHIP_CHANGED", companionGuid(msg))
 end
 
+-- Longer than the server's request timeout plus one retry; a lost "typing off" (server restart,
+-- reload, a line the server answered without AI) must not leave "is thinking..." up forever.
+TC.TYPING_TIMEOUT = 100
+
+function TC:SetTyping(guid, on)
+    if not guid then return end
+    if on then
+        self.state.typing[guid] = true
+        self.state.typingSince[guid] = GetTime()
+    else
+        self.state.typing[guid] = nil
+        self.state.typingSince[guid] = nil
+    end
+    self:Fire("TYPING_CHANGED", guid)
+end
+
+function TC:ExpireTyping(now)
+    for g, since in pairs(self.state.typingSince) do
+        if now - since > self.TYPING_TIMEOUT then self:SetTyping(g, false) end
+    end
+end
+
 handlers.chat_msg = function(msg)
     local g = companionGuid(msg)
     TC:AddChatLine(g, msg.from, msg.text, msg.ts)
     if msg.from == "companion" then
         if TC.ChatFilter then TC.ChatFilter:Expect(g, msg.text) end
-        TC.state.typing[g] = nil
-        TC:Fire("TYPING_CHANGED", g)
+        TC:SetTyping(g, false)
     end
 end
 
@@ -193,9 +215,7 @@ handlers.bot_feedback = function(msg)
 end
 
 handlers.typing = function(msg)
-    local g = companionGuid(msg)
-    TC.state.typing[g] = msg.on and true or nil
-    TC:Fire("TYPING_CHANGED", g)
+    TC:SetTyping(companionGuid(msg), msg.on and true or false)
 end
 
 handlers.status = function(msg)
@@ -259,12 +279,11 @@ handlers.error = function(msg)
     if msg.code ~= "protocol" and not quiet then
         TC:Print("|cffff6060" .. text .. "|r")
     end
-    if msg.code == "busy" or msg.code == "not_active" or msg.code == "ai_disabled" then
-        local g = companionGuid(msg) or TC.state.selected
-        if g then
-            TC.state.typing[g] = nil
-            TC:Fire("TYPING_CHANGED", g)
-        end
+    -- no answer is coming for these: clear "is thinking..."
+    local noReply = { busy = true, not_active = true, ai_disabled = true, timeout = true, offline = true,
+        model_missing = true, http_error = true, bad_response = true }
+    if noReply[msg.code] or (msg.code == "rate_limited" and msg["for"] == "chat") then
+        TC:SetTyping(companionGuid(msg) or TC.state.selected, false)
     end
 end
 
@@ -331,8 +350,9 @@ frame:SetScript("OnUpdate", function(_, elapsed)
             TC:Request("hello", { version = TC.version, protocol = Protocol.VERSION })
         end
     end
-    -- drop stale callbacks
+    -- drop stale callbacks and typing indicators
     local now = GetTime()
+    TC:ExpireTyping(now)
     for req, p in pairs(pending) do
         if now - p.t > 60 then pending[req] = nil end
     end
@@ -497,7 +517,7 @@ SlashCmdList["TRUECOMPANION"] = function(input)
         TC:Request("get_status", {}, function(msg)
             local o = msg.ollama or {}
             TC:Print(("Module %s, Ollama %s%s, model %s"):format(msg.enabled and "on" or "off",
-                o.online and "|cff60ff60online|r" or "|cffff6060offline|r", o.version ~= "" and (" " .. (o.version or "")) or "",
+                o.online and "|cff60ff60online|r" or "|cffff6060offline|r", (o.version and o.version ~= "") and (" " .. o.version) or "",
                 tostring(msg.model)))
         end)
     elseif input == "reset window" then

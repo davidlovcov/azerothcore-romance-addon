@@ -90,9 +90,14 @@ encodeValue = function(v, out, depth)
         if v ~= v or v == math.huge or v == -math.huge then
             tinsert(out, "0")
         elseif v == floor(v) and v > -1e15 and v < 1e15 then
-            tinsert(out, strformat("%d", v))
+            -- "%d" goes through a C long, which is 32 bits in the Windows client: values above
+            -- 2^31 would wrap. "%.0f" is exact for every integer below 2^53.
+            tinsert(out, strformat("%.0f", v))
         else
-            tinsert(out, strformat("%.6g", v))
+            -- shortest form that reads back as the same number ("%.6g" lost precision)
+            local s = strformat("%.14g", v)
+            if tonumber(s) ~= v then s = strformat("%.17g", v) end
+            tinsert(out, s)
         end
     elseif tv == "string" then
         tinsert(out, escapeString(v))

@@ -275,7 +275,7 @@ local function build(f)
                 r.lead:SetScript("OnClick", function()
                     local g = TC.state.selected
                     if not g then return say("Select the companion who should lead on the Companion tab.", true) end
-                    TC.state.typing[g] = true
+                    TC:SetTyping(g, true)
                     TC:Request("chat", { guid = g, text = "lead me to " .. (q.title or "") })
                     say("Asked her to lead to \"" .. (q.title or "") .. "\".")
                 end)

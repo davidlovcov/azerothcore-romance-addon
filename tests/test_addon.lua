@@ -801,6 +801,201 @@ do
     TC.UI:RefreshStatus()
 end
 
+-- 10g. protocol: duplicates, replacements, the byte limit -------------------------------
+do
+    local P = TC.Protocol
+    local re = P.NewReassembler()
+    check(re:Feed("a1:1/3:", 0) == nil and re:Feed("a1:1/3:", 0) == nil and re:Feed("a1:2/3:{\"op\":", 0) == nil,
+        "protocol: an empty duplicate counts once")
+    local msg = re:Feed("a1:3/3:\"x\"}", 0)
+    check(type(msg) == "table" and msg.op == "x", "protocol: complete only after the last part")
+    local half = string.rep("a", P.MAX_INBOUND / 2)
+    re = P.NewReassembler()
+    re:Feed("b1:1/3:" .. half, 0)
+    re:Feed("b1:2/3:x", 0)
+    local ok, err = re:Feed("b1:2/3:" .. half .. "c", 0)
+    check(ok == false and tostring(err):find("large"), "protocol: a longer replacement counts against the limit")
+    re = P.NewReassembler()
+    re:Feed("c1:1/3:" .. half, 0)
+    re:Feed("c1:2/3:" .. half, 0)
+    re:Feed("c1:2/3:x", 0)
+    ok, err = re:Feed("c1:3/3:" .. string.rep("z", 100), 0)
+    check(ok ~= false or not tostring(err):find("large"), "protocol: a shorter replacement frees its bytes")
+end
+
+-- 10h. Memory Viewer: an operation stays with the companion it was opened for; late answers are dropped -----
+do
+    local stub = _G.WOWSTUB
+    local MV = TC.MemoryViewer
+    local savedChars = TC.state.chars
+    TC.state.chars = { { guid = 2, name = "Elara", active = true }, { guid = 3, name = "Lyra", active = true } }
+    local function lastPopup() return stub.popups[#stub.popups] end
+
+    -- reset opened for Elara, viewer switched to Lyra, then confirmed: Elara is reset, Lyra untouched
+    MV:Open(2)
+    drainRequests()
+    MV.resetButton:Click()
+    local popup = lastPopup()
+    check(popup.which == "TRUECOMPANION_RESET" and popup.arg1 == "Elara", "reset confirmation names the companion")
+    MV:Open(3)
+    drainRequests()
+    popup.data()
+    local r = findOp(drainRequests(), "reset_companion")
+    check(r and r.guid == 2, "reset goes to the companion it was opened for, not the one shown now")
+
+    -- clear and add the same way
+    MV:Open(2)
+    MV.clearButton:Click()
+    popup = lastPopup()
+    check(tostring(popup.arg1):find("Elara"), "clear confirmation names the companion")
+    MV:Open(3)
+    drainRequests()
+    popup.data()
+    r = findOp(drainRequests(), "clear_memories")
+    check(r and r.guid == 2, "clear goes to the companion it was opened for")
+    MV:Open(2)
+    MV.addButton:Click()
+    popup = lastPopup()
+    MV:Open(3)
+    drainRequests()
+    popup.data.onAccept("remembered for Elara")
+    r = findOp(drainRequests(), "add_memory")
+    check(r and r.guid == 2, "add goes to the companion it was opened for")
+
+    -- import window opened for Elara, viewer switched to Lyra: the import still goes to Elara
+    MV:Open(2)
+    MV:ShowTransfer("import")
+    MV:Open(3)
+    drainRequests()
+    MV.transfer.area:SetValue(TC.Json.Encode({ format = "mod-true-companion-export", memories = TC.Json.Array({ { text = "x" } }) }))
+    MV:RunImport()
+    r = findOp(drainRequests(), "import_begin")
+    check(r and r.guid == 2, "import goes to the companion the window was opened for")
+    check(MV.transfer.title:GetText():find("Elara"), "import window keeps naming that companion")
+    serverSend({ op = "ack", ["for"] = "import_begin", req = r.req, ok = false, code = "cancelled" })   -- end it
+    MV.transfer:Hide()
+
+    -- a late answer for Elara arrives after switching to Lyra: not shown under Lyra
+    MV:Open(2)
+    local forElara = findOp(drainRequests(), "get_memories")
+    MV:Open(3)
+    local forLyra = findOp(drainRequests(), "get_memories")
+    check(MV.rows[1].mem == nil, "switching companions clears the old rows")
+    serverSend({ op = "memories", req = forElara.req, total = 1, items = { { id = 99, text = "Elara's memory", kind = "fact" } } })
+    check(MV.rows[1].mem == nil, "a late answer for the previous companion is dropped")
+    serverSend({ op = "memories", req = forLyra.req, total = 1, items = { { id = 5, text = "Lyra's memory", kind = "fact" } } })
+    check(MV.rows[1].mem and MV.rows[1].mem.id == 5, "the current companion's answer is shown")
+    -- row actions use the companion of the answer they came from
+    drainRequests()
+    MV.rows[1].del:Click()
+    r = findOp(drainRequests(), "delete_memory")
+    check(r and r.guid == 3 and r.id == 5, "row action uses the shown answer's companion and memory")
+    -- two loads for the same companion answered out of order: the older one is dropped
+    MV.offset = 0
+    MV:Load()
+    local older = findOp(drainRequests(), "get_memories")
+    MV.offset = 25
+    MV:Load()
+    local newer = findOp(drainRequests(), "get_memories")
+    serverSend({ op = "memories", req = newer.req, total = 30, items = { { id = 30, text = "page 2", kind = "fact" } } })
+    serverSend({ op = "memories", req = older.req, total = 30, items = { { id = 1, text = "page 1", kind = "fact" } } })
+    check(MV.rows[1].mem and MV.rows[1].mem.id == 30, "an older answer arriving last doesn't replace the newer page")
+    MV.frame:Hide()
+    TC.state.chars = savedChars
+end
+
+-- 10i. transfers: a timed-out transfer can't disturb the next one; each ends exactly once ---------------
+do
+    local stub = _G.WOWSTUB
+    local T = TC.Transfer
+    local doneA, doneB = 0, 0
+    local resA, resB
+    T:Export(2, nil, function(text, err) doneA = doneA + 1 resA = { text = text, err = err } end)
+    local a0 = findOp(drainRequests(), "export")
+    stub.Advance(T.TIMEOUT + 1) stub.Update(0.1)
+    check(doneA == 1 and resA.text == nil and not T:Busy(), "export A times out once")
+    T:Export(3, nil, function(text, count) doneB = doneB + 1 resB = { text = text, count = count } end)
+    local b0 = findOp(drainRequests(), "export")
+    check(T:Busy() and b0 and b0.guid == 3, "export B runs")
+    local function page(i, n, mems) return TC.Json.Encode({ format = "mod-true-companion-export", page = i, pages = n, memories = TC.Json.Array(mems) }) end
+    -- A's late answer: ignored, B keeps running, A isn't completed again
+    serverSend({ op = "export_data", req = a0.req, guid = 2, part = 0, parts = 1, snapshot = "s1", data = page(0, 1, { { text = "late" } }) })
+    check(doneA == 1 and doneB == 0 and T:Busy(), "a late answer for A neither ends A again nor touches B")
+    -- B: pages from one snapshot only
+    serverSend({ op = "export_data", req = b0.req, guid = 3, part = 0, parts = 2, snapshot = "s7", data = page(0, 2, { { text = "b1" } }) })
+    local b1 = findOp(drainRequests(), "export")
+    check(b1 and b1.part == 1 and b1.snapshot == "s7", "the next page asks for the same snapshot")
+    serverSend({ op = "export_data", req = b1.req, guid = 3, part = 1, parts = 2, snapshot = "s8", data = page(1, 2, { { text = "b2" } }) })
+    check(doneB == 1 and resB.text == nil and tostring(resB.count):find("changed"), "pages from another snapshot are refused")
+    serverSend({ op = "export_data", req = b1.req, guid = 3, part = 1, parts = 2, snapshot = "s7", data = page(1, 2, {}) })
+    check(doneB == 1, "export B ends exactly once")
+
+    -- a retry left over from a timed-out import never sends for the next one
+    local resI, doneI = nil, 0
+    T:Import(2, page(0, 1, { { text = "x" } }), nil, function(ok, e, unknown) doneI = doneI + 1 resI = { ok = ok, e = e, unknown = unknown } end)
+    local ib = findOp(drainRequests(), "import_begin")
+    serverSend({ op = "error", code = "rate_limited", req = ib.req })   -- schedules a retry in 1.5 s
+    stub.Advance(T.TIMEOUT + 1) stub.Update(0.1)
+    check(doneI == 1 and resI.ok == false and not resI.unknown, "import times out before import_end: nothing was applied")
+    local doneJ, unknownJ = 0, nil
+    T:Import(3, page(0, 1, { { text = "y" } }), nil, function(ok, e, unknown) doneJ = doneJ + 1 unknownJ = unknown end)
+    local reqs = drainRequests()
+    local begins = 0
+    for _, m in ipairs(reqs) do if m.op == "import_begin" then begins = begins + 1 check(m.guid == 3, "only the new import sends") end end
+    stub.Advance(2) stub.Update(0.1)
+    for _, m in ipairs(drainRequests()) do if m.op == "import_begin" and m.guid == 2 then begins = 99 end end
+    check(begins == 1, "the old import's retry is cancelled")
+    -- the answer to import_end gets lost: the outcome is unknown, not "nothing changed"
+    local jb = findOp(reqs, "import_begin")
+    serverSend({ op = "ack", ["for"] = "import_begin", req = jb.req, ok = true })
+    local jp = findOp(drainRequests(), "import_part")
+    serverSend({ op = "ack", ["for"] = "import_part", req = jp.req, ok = true })
+    local je = findOp(drainRequests(), "import_end")
+    check(je ~= nil, "import_end sent")
+    stub.Advance(T.TIMEOUT + 1) stub.Update(0.1)
+    check(doneJ == 1 and not T:Busy() and unknownJ == true, "lost import_end answer: reported as unknown, not as unchanged")
+    serverSend({ op = "ack", ["for"] = "import_end", req = je.req, ok = true })
+    check(doneJ == 1, "a late import_end answer doesn't complete it again")
+end
+
+-- 10j. numbers and the typing indicator ---------------------------------------------
+-- integers above 2^31 (C long in the 32-bit client) and fractions encode exactly
+check(TC.Json.Encode({ a = 3000000000 }) == '{"a":3000000000}', "large integers are encoded exactly")
+check(TC.Json.Encode({ a = -2147483649 }) == '{"a":-2147483649}', "large negative integers are encoded exactly")
+for _, v in ipairs({ 0.1, 0.75, 1234567.5, 3.141592653589793, -0.000123456789 }) do
+    local back = TC.Json.Decode(TC.Json.Encode({ v = v }))
+    check(back and back.v == v, "number round-trips: " .. tostring(v))
+end
+check(TC.Json.Encode({ t = 0.75 }) == '{"t":0.75}', "short fractions stay short")
+
+TC.state.selected = 2
+TC.UI:ShowTab("chat")
+TrueCompanionChatInput:SetText("follow")
+TrueCompanionChatInput:GetScript("OnEnterPressed")(TrueCompanionChatInput)
+drainRequests()
+check(TC.state.typing[2] == true, "typing on after sending a line")
+serverSend({ op = "typing", guid = 2, on = false })
+check(TC.state.typing[2] == nil, "server clears typing when no reply comes")
+-- a lost "typing off" expires on its own
+TC:SetTyping(2, true)
+stub.Advance(TC.TYPING_TIMEOUT / 2)
+stub.Update(0.1)
+check(TC.state.typing[2] == true, "typing still on while a reply may come")
+stub.Advance(TC.TYPING_TIMEOUT)
+stub.Update(0.1)
+check(TC.state.typing[2] == nil, "stale typing indicator expires")
+-- a typing push without guid is ignored instead of raising an error
+local errorsBefore = #TC.state.errors
+serverSend({ op = "typing", on = true })
+check(#TC.state.errors == errorsBefore, "typing without guid is ignored")
+-- a rate-limited chat line gets no answer; a rate-limited other request keeps the indicator
+TC:SetTyping(2, true)
+serverSend({ op = "error", code = "rate_limited", ["for"] = "get_memories" })
+check(TC.state.typing[2] == true, "a rate-limited non-chat request keeps typing")
+serverSend({ op = "error", code = "rate_limited", ["for"] = "chat" })
+check(TC.state.typing[2] == nil, "a rate-limited chat line clears typing")
+for _ = 1, 2 do table.remove(TC.state.errors, 1) end   -- expected server errors, not UI errors
+
 -- 11. no unexpected UI errors -------------------------------------------------------
 local unexpected = {}
 for _, e in ipairs(TC.state.errors) do

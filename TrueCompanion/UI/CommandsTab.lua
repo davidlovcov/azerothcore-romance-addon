@@ -78,8 +78,7 @@ function TC:SendCommand(text)
     end
     local g = target()
     if not g then return false, "Choose a companion under \"Send to\" (or call one on the Companion tab)." end
-    TC.state.typing[g] = true
-    TC:Fire("TYPING_CHANGED", g)
+    TC:SetTyping(g, true)
     TC:Request("chat", { guid = g, text = text })
     return true
 end

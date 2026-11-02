@@ -85,6 +85,8 @@ function Reassembler:Feed(chunk, now)
     if not p.parts[seq] then
         p.received = p.received + 1
         p.bytes = p.bytes + #data
+    else
+        p.bytes = p.bytes - #p.parts[seq] + #data   -- duplicate chunk: last one wins, and its size counts
     end
     p.parts[seq] = data
     if p.bytes > Protocol.MAX_INBOUND then

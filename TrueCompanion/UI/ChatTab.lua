@@ -116,7 +116,7 @@ local function build(f)
         if text:sub(1, 1) == "!" then
             TC:AddChatLine(g, "command", text:sub(2), time())
         end
-        TC.state.typing[g] = text:sub(1, 1) ~= "!" or nil
+        TC:SetTyping(g, text:sub(1, 1) ~= "!")
         f:RenderTyping()
         TC:Request("chat", { guid = g, text = text })
     end

@@ -20,49 +20,70 @@ function T.IsFormat(f) return f == T.FORMAT or f == "mod-romance-export" end
 T.REQUEST_BUDGET = 14000     -- bytes per import request; the server accepts 16 KiB per message
 T.TIMEOUT = 30               -- seconds without an answer before a transfer is abandoned
 
-local active               -- { deadline, fail }
-local timers = {}          -- { at, fn }: delayed retries
+-- The running transfer: { id, deadline, fail, done }. Every callback and retry checks that it still belongs to
+-- the running transfer, so a late answer to an abandoned (timed-out) transfer can never touch a newer one.
+local active
+local nextId = 0
+local timers = {}          -- { at, fn, t }: delayed retries of transfer t
+
+local function isLive(t) return t ~= nil and active == t and not t.done end
+
+-- ends transfer t exactly once; later calls (late answers, the watchdog) do nothing
+local function complete(t, fn, ...)
+    if not t or t.done then return end
+    t.done = true
+    if active == t then active = nil end
+    for i = #timers, 1, -1 do
+        if timers[i].t == t then table.remove(timers, i) end
+    end
+    fn(...)
+end
 
 local watchdog = CreateFrame("Frame")
 watchdog:SetScript("OnUpdate", function()
+    -- the timeout first: a transfer that ran out of time must not send its pending retry anymore
+    if active and GetTime() > active.deadline then
+        local t = active
+        complete(t, t.fail, "the server did not answer in time", true)
+    end
     if #timers > 0 then
         local now = GetTime()
         for i = #timers, 1, -1 do
-            if timers[i].at <= now then
-                local fn = timers[i].fn
+            local tm = timers[i]
+            if tm and tm.at <= now then
                 table.remove(timers, i)
-                fn()
+                if isLive(tm.t) then tm.fn() end
             end
         end
-    end
-    if active and GetTime() > active.deadline then
-        local fail = active.fail
-        active = nil
-        fail("the server did not answer in time")
     end
 end)
 watchdog:Show()
 
-local function step(fail)
-    active = { deadline = GetTime() + T.TIMEOUT, fail = fail }
+local function begin(fail)
+    nextId = nextId + 1
+    active = { id = nextId, deadline = GetTime() + T.TIMEOUT, fail = fail, done = false }
+    return active
 end
 
-local function finish()
-    active = nil
+local function step(t)
+    if isLive(t) then t.deadline = GetTime() + T.TIMEOUT end
 end
 
 function T:Busy() return active ~= nil end
 
--- Sends a transfer request; when the server answers "Too many requests" the same request is sent again
--- after a short pause (a transfer shares the server's rate limit with everything else the addon does).
-local function request(op, payload, cb)
+-- Sends a transfer request for transfer t; when the server answers "Too many requests" the same request is sent
+-- again after a short pause (a transfer shares the server's rate limit with everything else the addon does).
+-- Answers that arrive after t ended are ignored.
+local function request(t, op, payload, cb)
     local tries = 0
     local function send()
+        if not isLive(t) then return end
         TC:Request(op, payload, function(msg)
-            if msg.op == "error" and msg.code == "rate_limited" and active and tries < 8 then
+            if not isLive(t) then return end
+            if msg.op == "error" and msg.code == "rate_limited" and tries < 8 then
                 tries = tries + 1
-                active.deadline = GetTime() + T.TIMEOUT
-                timers[#timers + 1] = { at = GetTime() + 1.5, fn = send }
+                step(t)
+                timers[#timers + 1] = { at = GetTime() + 1.5, fn = send, t = t }
                 return
             end
             cb(msg)
@@ -138,32 +159,34 @@ end
 
 -- ------------------------------------------------------------------ export
 
--- onDone(text, memoryCount) or onDone(nil, error)
+-- onDone(text, memoryCount) or onDone(nil, error). Called exactly once.
 function T:Export(guid, onProgress, onDone)
     if active then onDone(nil, "another transfer is still running") return end
-    local pages = {}
-    local function fail(err)
-        finish()
-        onDone(nil, err)
-    end
+    local pages, snapshot = {}, nil
+    local t
+    local function fail(err) complete(t, onDone, nil, err) end
+    t = begin(function(err) onDone(nil, err) end)
     local function ask(part)
-        step(fail)
-        request("export", { guid = guid, part = part }, function(msg)
-            if not active then return end
+        step(t)
+        request(t, "export", { guid = guid, part = part, snapshot = snapshot }, function(msg)
             if msg.op ~= "export_data" then return fail(TC:AckText(msg)) end
             if msg.parts == nil then          -- server without paging: one complete export
-                finish()
                 local ok, full = pcall(Json.Decode, msg.data or "")
-                return onDone(msg.data, ok and type(full) == "table" and #(full.memories or {}) or 0)
+                return complete(t, onDone, msg.data, ok and type(full) == "table" and #(full.memories or {}) or 0)
+            end
+            -- every page must come from the same frozen export (the server's snapshot)
+            if part == 0 then
+                snapshot = msg.snapshot
+            elseif msg.snapshot ~= snapshot then
+                return fail("the export changed while it was being sent; please export again")
             end
             pages[part + 1] = msg.data or ""
             local parts = tonumber(msg.parts) or 1
             if onProgress then onProgress(part + 1, parts) end
             if part + 1 < parts then return ask(part + 1) end
-            finish()
             local full, err = T.JoinPages(pages)
-            if not full then return onDone(nil, err) end
-            onDone(Json.Encode(full), #full.memories)
+            if not full then return fail(err) end
+            complete(t, onDone, Json.Encode(full), #full.memories)
         end)
     end
     ask(0)
@@ -171,7 +194,8 @@ end
 
 -- ------------------------------------------------------------------ import
 
--- onDone(true, notes) or onDone(false, error)
+-- onDone(true, notes) or onDone(false, error, unknown). Called exactly once. `unknown` is true when the answer to
+-- "import_end" never came: the server may have applied the import, so "nothing changed" can't be claimed.
 function T:Import(guid, text, onProgress, onDone)
     if active then onDone(false, "another transfer is still running") return end
     local ok, full = pcall(Json.Decode, text or "")
@@ -181,12 +205,10 @@ function T:Import(guid, text, onProgress, onDone)
     end
     local pages, err = T.SplitForImport(full, guid)
     if not pages then onDone(false, err) return end
-    local function fail(e)
-        finish()
-        onDone(false, e)
-    end
+    local committing = false
+    local t = begin(function(e, timedOut) onDone(false, e, timedOut and committing or false) end)
+    local function fail(e) complete(t, onDone, false, e, false) end
     local function expectOk(msg)
-        if not active then return false end
         if msg.op ~= "ack" or not msg.ok then
             fail(TC:AckText(msg))
             return false
@@ -194,24 +216,22 @@ function T:Import(guid, text, onProgress, onDone)
         return true
     end
     local function sendPart(i)
+        step(t)
         if i > #pages then
-            step(fail)
-            request("import_end", { guid = guid }, function(msg)
+            committing = true
+            request(t, "import_end", { guid = guid }, function(msg)
                 if not expectOk(msg) then return end
-                finish()
-                onDone(true, msg.notes or {})
+                complete(t, onDone, true, msg.notes or {})
             end)
             return
         end
-        step(fail)
-        request("import_part", { guid = guid, index = i - 1, data = pages[i] }, function(msg)
+        request(t, "import_part", { guid = guid, index = i - 1, data = pages[i] }, function(msg)
             if not expectOk(msg) then return end
             if onProgress then onProgress(i, #pages) end
             sendPart(i + 1)
         end)
     end
-    step(fail)
-    request("import_begin", { guid = guid, parts = #pages }, function(msg)
+    request(t, "import_begin", { guid = guid, parts = #pages }, function(msg)
         if not expectOk(msg) then return end
         sendPart(1)
     end)
