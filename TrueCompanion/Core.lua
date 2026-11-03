@@ -86,21 +86,23 @@ function TC:CharKey()
     return (GetRealmName() or "?") .. "-" .. (UnitName("player") or "?")
 end
 
+-- A damaged saved-variables file (an interrupted save, an edited file, an old version) must degrade to an empty
+-- log, not break chat: every level is checked before it is used.
 function TC:ChatLog(guid)
     local key = self:CharKey()
+    if type(TrueCompanionDB.chat) ~= "table" then TrueCompanionDB.chat = {} end
     local db = TrueCompanionDB.chat
-    db[key] = db[key] or {}
+    if type(db[key]) ~= "table" then db[key] = {} end
     local k = tostring(guid)
-    db[key][k] = db[key][k] or {}
+    if type(db[key][k]) ~= "table" then db[key][k] = {} end
     return db[key][k]
 end
 
 function TC:AddChatLine(guid, from, text, ts)
     if not guid or not text then return end
     local log = self:ChatLog(guid)
-    local last = log[#log]
-    -- the server echoes player lines; avoid duplicates from history refreshes
-    if last and last.text == text and last.from == from and math.abs((last.ts or 0) - (ts or 0)) < 3 then return end
+    -- Every line the server sends is a distinct line: history is only loaded into an empty log (TC:Select), so
+    -- two identical lines ("hello" twice, "Yes." twice) must both be kept, not merged as duplicates.
     table.insert(log, { from = from, text = text, ts = ts or time() })
     while #log > 200 do table.remove(log, 1) end
     self:Fire("CHAT_CHANGED", guid)
@@ -123,7 +125,12 @@ function TC:Request(op, payload, cb)
     payload.op = op
     reqCounter = reqCounter + 1
     payload.req = reqCounter
-    if cb then pending[reqCounter] = { op = op, cb = cb, t = GetTime() } end
+    -- The companion a request is about is remembered with it: the server's error replies carry no guid, and an
+    -- answer that arrives after the player selected another companion must not act on (or clear the typing of)
+    -- the wrong one.
+    if cb or payload.guid then
+        pending[reqCounter] = { op = op, cb = cb, t = GetTime(), guid = tonumber(payload.guid) }
+    end
     local ok, err = pcall(self.sender.Queue, self.sender, payload)
     if not ok then self:LogError("send:" .. op, err) end
     return reqCounter
@@ -307,9 +314,13 @@ local function dispatch(msg)
     local req = (type(msg.req) == "number" or type(msg.req) == "string") and tonumber(msg.req) or nil
     if req and pending[req] then
         local p = pending[req]
+        -- an error reply has no guid of its own; the companion it is about is the one the request named
+        if msg.op == "error" and msg.guid == nil and p.guid then msg.guid = p.guid end
         pending[req] = nil
-        local ok, err = pcall(p.cb, msg)
-        if not ok then TC:LogError("cb:" .. tostring(p.op), err) end
+        if p.cb then
+            local ok, err = pcall(p.cb, msg)
+            if not ok then TC:LogError("cb:" .. tostring(p.op), err) end
+        end
     end
     local h = handlers[msg.op]
     if h then

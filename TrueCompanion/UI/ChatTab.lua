@@ -84,7 +84,7 @@ local function build(f)
         local entries = TC:ChatLog(g)
         local start = math.max(1, #entries - 150)
         for i = start, #entries do
-            log:AddMessage(lineFor(entries[i], cname))
+            if type(entries[i]) == "table" then log:AddMessage(lineFor(entries[i], cname)) end
         end
         log:ScrollToBottom()
         f:RenderTyping()
@@ -119,7 +119,13 @@ local function build(f)
         end
         TC:SetTyping(g, text:sub(1, 1) ~= "!")
         f:RenderTyping()
-        TC:Request("chat", { guid = g, text = text })
+        TC:Request("chat", { guid = g, text = text }, function(msg)
+            if msg.op ~= "error" then return end
+            -- the server refused the line (still answering, AI off, too fast): it is not in the conversation, so
+            -- put it back into the box instead of losing what the player typed
+            if (input:GetText() or "") == "" then input:SetText(text) end
+            f:RenderTyping()
+        end)
     end
     send:SetScript("OnClick", doSend)
     input:SetScript("OnEnterPressed", function(self) doSend() end)
