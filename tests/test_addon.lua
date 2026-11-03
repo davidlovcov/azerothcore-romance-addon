@@ -1058,6 +1058,15 @@ serverSend({ op = "error", code = "rate_limited", ["for"] = "chat" })
 check(TC.state.typing[2] == nil, "a rate-limited chat line clears typing")
 for _ = 1, 2 do table.remove(TC.state.errors, 1) end   -- expected server errors, not UI errors
 
+-- 10k. broken or hostile server fields -------------------------------------------------
+check(TC:Escape("a|b") == "a||b", "pipe is escaped before it reaches chat or a label")
+check(TC:Escape(nil) == "", "escape tolerates nil")
+-- dispatch runs outside any pcall: a non-scalar req must not abort the whole message
+serverSend({ op = "typing", guid = 2, on = true, req = {} })
+check(TC.state.typing[2] == true, "a table in req does not swallow the message")
+serverSend({ op = "typing", guid = 2, on = false })
+check(TC.state.typing[2] == nil, "typing still works afterwards")
+
 -- 11. no unexpected UI errors -------------------------------------------------------
 local unexpected = {}
 for _, e in ipairs(TC.state.errors) do
