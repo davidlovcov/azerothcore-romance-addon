@@ -71,9 +71,14 @@ local function build(f)
         offset = math.max(0, math.min(math.max(0, n - ROWS), offset - delta))
         f:RefreshList()
     end)
+    f.list = list
+    f.rows = rows
 
     function f:RefreshList()
         local chars = TC.state.chars
+        -- the list can shrink (a linked character gone, the server's cap): never stay scrolled past its end,
+        -- or the rows would be empty while characters exist
+        offset = math.max(0, math.min(math.max(0, #chars - ROWS), offset))
         UI.SetShown(empty, #chars == 0)
         if not TC.state.connected then
             empty:SetText("Waiting for the server...\nIs mod-true-companion installed on this realm?")

@@ -34,9 +34,14 @@ local BUILTIN = {
 }
 TC.BUILTIN_COMMANDS = BUILTIN
 
+-- the player's own commands, repaired if the saved variables were damaged (interrupted save, hand-edited file)
 local function custom()
-    TrueCompanionDB.commands = TrueCompanionDB.commands or {}
-    return TrueCompanionDB.commands
+    if type(TrueCompanionDB.commands) ~= "table" then TrueCompanionDB.commands = {} end
+    local list = TrueCompanionDB.commands
+    for i = #list, 1, -1 do
+        if type(list[i]) ~= "table" or type(list[i].text) ~= "string" then table.remove(list, i) end
+    end
+    return list
 end
 
 -- "party", or the guid of the companion the commands go to (default: the one selected on the Companion tab)

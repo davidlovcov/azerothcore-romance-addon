@@ -75,6 +75,7 @@ local function build(f)
         l:SetWidth(320)
         moments[i] = l
     end
+    f.stage, f.moments = stage, moments
 
     local actions = W.Panel(f, 350, 182)
     actions:SetPoint("BOTTOMRIGHT", 0, 0)
@@ -163,14 +164,19 @@ local function build(f)
         stageDD:SetValue(r.stage)
     end
 
+    -- Moments belong to one companion: an answer that arrives after the selection changed (or after a newer
+    -- reload) must not replace the moments shown now. Every load gets its own number; only the newest one renders.
     function f:LoadMoments()
         local g = TC.state.selected
+        local gen = (self.momentsGen or 0) + 1
+        self.momentsGen = gen
         for i = 1, 6 do moments[i]:SetText("") end
         if not g then return end
         TC:Request("get_memories", { guid = g, kind = "relationship", limit = 4 }, function(msg)
-            if msg.op ~= "memories" then return end
+            if gen ~= self.momentsGen or msg.op ~= "memories" then return end
             local items = msg.items or {}
             TC:Request("get_memories", { guid = g, kind = "gift", limit = 2 }, function(m2)
+                if gen ~= self.momentsGen or m2.op ~= "memories" then return end
                 for _, it in ipairs(m2.items or {}) do table.insert(items, it) end
                 for i = 1, 6 do
                     local it = items[i]
@@ -182,6 +188,11 @@ local function build(f)
 
     TC:On("RELATIONSHIP_CHANGED", function() if f:IsShown() then f:Refresh() end end)
     TC:On("SELECTION_CHANGED", function() if f:IsShown() then f:Refresh() f:LoadMoments() end end)
+    -- the relationship arrives inside the companion payload (get_companion), not as a separate push: without
+    -- this the tab says "Loading..." until the next relationship change when it was opened before that answer
+    TC:On("COMPANION_CHANGED", function(g)
+        if g == TC.state.selected and f:IsShown() then f:Refresh() f:LoadMoments() end
+    end)
     TC:On("MEMORY_CHANGED", function() if f:IsShown() then f:LoadMoments() end end)
     f.OnShowTab = function()
         f:Refresh()

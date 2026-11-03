@@ -26,9 +26,9 @@ TC.GroupQuests = Q
 -- ---------------------------------------------------------------- ignored quests (per character)
 
 function Q:Ignored()
-    TrueCompanionDB.ignoredQuests = TrueCompanionDB.ignoredQuests or {}
+    if type(TrueCompanionDB.ignoredQuests) ~= "table" then TrueCompanionDB.ignoredQuests = {} end
     local key = TC:CharKey()
-    TrueCompanionDB.ignoredQuests[key] = TrueCompanionDB.ignoredQuests[key] or {}
+    if type(TrueCompanionDB.ignoredQuests[key]) ~= "table" then TrueCompanionDB.ignoredQuests[key] = {} end
     return TrueCompanionDB.ignoredQuests[key]   -- [questId] = title
 end
 
@@ -51,7 +51,7 @@ TC:On("HELLO", function() Q:SendIgnored() end)
 
 -- Requests are numbered; `orderAt` is the number of the last request sent before the order changed here (a move,
 -- Apply or Reset). An answer to an older request carries an out-of-date order: only its quest status is taken.
-Q.seq, Q.orderAt = 0, 0
+Q.seq, Q.orderAt, Q.orderVersion = 0, 0, 0
 
 -- Takes the server's quest data but keeps the local order (unsaved edits, or an Apply still on its way):
 -- quests keep their place with fresh status, new ones go to the end, finished or dropped ones disappear.
@@ -104,14 +104,17 @@ function Q:Move(i, delta)
     if j < 1 or j > #self.quests then return end
     self.quests[i], self.quests[j] = self.quests[j], self.quests[i]
     self.changed = true
+    self.orderVersion = self.orderVersion + 1
     self.orderAt = self.seq   -- answers to requests already sent must not undo this
 end
 
 -- The local order only becomes "saved" when the server confirms it: a rejected or unanswered request keeps
 -- `changed` set, so the next refresh merges instead of silently throwing the edits away. The message goes
 -- to the tab's status line, which is built later, hence the frame lookup.
-function Q:OrderAck(sentAt, okText)
-    if self.seq == sentAt then self.changed = false end
+-- `sentVersion` is the order the request carried. Requests for other reasons (a Share/Take answer, the tab
+-- being shown again) bump `seq` while Apply is on its way and must not leave the edit marked as unapplied.
+function Q:OrderAck(sentVersion, okText)
+    if self.orderVersion == sentVersion then self.changed = false end
     if self.frame and self.frame.say then self.frame.say(okText) end
     Q:Request()
 end
@@ -123,11 +126,11 @@ end
 function Q:Apply()
     local ids = {}
     for _, q in ipairs(self.quests) do ids[#ids + 1] = q.id end
-    local sentAt = self.seq
+    local sentVersion = self.orderVersion
     self.orderAt = self.seq   -- answers already on their way must not undo this
     TC:Request("set_group_quest_order", { quests = ids, apply = true }, function(msg)
         if msg.op == "ack" and msg.ok then
-            Q:OrderAck(sentAt, "Order applied: the leading companion does the first quest that is still needed.")
+            Q:OrderAck(sentVersion, "Order applied: the leading companion does the first quest that is still needed.")
         else
             Q:OrderFailed(msg)
         end
