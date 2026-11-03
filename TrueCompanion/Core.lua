@@ -28,6 +28,9 @@ TC.state = {
     errors = {},         -- recent errors for the debug tab
 }
 
+-- '|' opens a UI escape sequence (colour, texture, link): server and player text is shown literally.
+function TC:Escape(s) return (tostring(s or "")):gsub("|", "||") end
+
 -- ---------------------------------------------------------------- events
 
 local listeners = {}
@@ -174,7 +177,7 @@ handlers.relationship = function(msg)
 end
 
 handlers.milestone = function(msg)
-    TC:Print(("|cffffd100%s|r"):format(msg.label or "A new chapter begins."))
+    TC:Print(("|cffffd100%s|r"):format(TC:Escape(msg.label or "A new chapter begins.")))
     PlaySound("LEVELUPSOUND")
     TC:Fire("RELATIONSHIP_CHANGED", companionGuid(msg))
 end
@@ -277,7 +280,7 @@ handlers.error = function(msg)
     local quiet = msg.code == "rate_limited" and TC.lastRateLimitNote and GetTime() - TC.lastRateLimitNote < 10
     if msg.code == "rate_limited" and not quiet then TC.lastRateLimitNote = GetTime() end
     if msg.code ~= "protocol" and not quiet then
-        TC:Print("|cffff6060" .. text .. "|r")
+        TC:Print("|cffff6060" .. TC:Escape(text) .. "|r")
     end
     -- no answer is coming for these: clear "is thinking..."
     local noReply = { busy = true, not_active = true, ai_disabled = true, timeout = true, offline = true,
@@ -288,7 +291,8 @@ handlers.error = function(msg)
 end
 
 local function dispatch(msg)
-    local req = msg.req and tonumber(msg.req)
+    -- a malformed server field must not abort the whole message (this runs outside any pcall)
+    local req = (type(msg.req) == "number" or type(msg.req) == "string") and tonumber(msg.req) or nil
     if req and pending[req] then
         local p = pending[req]
         pending[req] = nil
@@ -493,7 +497,11 @@ function TC:Select(guid)
             local log = self:ChatLog(guid)
             if #log == 0 then
                 for _, it in ipairs(msg.items or {}) do
-                    if it.from ~= "event" then table.insert(log, { from = it.from, text = it.text, ts = it.ts }) end
+                    -- these entries are stored in SavedVariables and rendered later: keep only what renders
+                    if type(it) == "table" and it.from ~= "event" and type(it.text) == "string" then
+                        table.insert(log, { from = type(it.from) == "string" and it.from or "companion",
+                                            text = it.text, ts = tonumber(it.ts) })
+                    end
                 end
                 self:Fire("CHAT_CHANGED", guid)
             end

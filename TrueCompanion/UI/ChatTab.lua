@@ -50,15 +50,16 @@ local function build(f)
 
     local function playerName()
         local p = TC.state.profile
-        return (p and p.preferredName and p.preferredName ~= "" and p.preferredName) or UnitName("player")
+        return TC:Escape((p and p.preferredName and p.preferredName ~= "" and p.preferredName) or UnitName("player"))
     end
 
     local function lineFor(entry, compName)
         local ts = ""
-        if TC.db.timestamps and entry.ts then
-            ts = "|cff777777" .. date("%H:%M", entry.ts) .. "|r "
+        local stamp = tonumber(entry.ts)
+        if TC.db.timestamps and stamp then
+            ts = "|cff777777" .. date("%H:%M", stamp) .. "|r "
         end
-        local text = (entry.text or ""):gsub("|", "||")
+        local text = TC:Escape(entry.text)
         if entry.from == "player" then
             return ts .. "|cffffd76b" .. playerName() .. ":|r |cffe8e0d0" .. text .. "|r"
         elseif entry.from == "command" then
@@ -66,7 +67,7 @@ local function build(f)
         elseif entry.from == "system" then
             return ts .. "|cff808080[Playerbots] " .. text .. "|r"
         else
-            return ts .. "|cffff9ccf" .. (compName or "Companion") .. ":|r |cfffff0f6" .. text .. "|r"
+            return ts .. "|cffff9ccf" .. TC:Escape(compName or "Companion") .. ":|r |cfffff0f6" .. text .. "|r"
         end
     end
 
@@ -79,7 +80,7 @@ local function build(f)
             return
         end
         local cname = char and char.name or (comp and comp.name) or "Companion"
-        header:SetText("Conversation with " .. cname)
+        header:SetText("Conversation with " .. TC:Escape(cname))
         local entries = TC:ChatLog(g)
         local start = math.max(1, #entries - 150)
         for i = start, #entries do

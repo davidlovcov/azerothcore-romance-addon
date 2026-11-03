@@ -172,7 +172,10 @@ function T:Export(guid, onProgress, onDone)
             if msg.op ~= "export_data" then return fail(TC:AckText(msg)) end
             if msg.parts == nil then          -- server without paging: one complete export
                 local ok, full = pcall(Json.Decode, msg.data or "")
-                return complete(t, onDone, msg.data, ok and type(full) == "table" and #(full.memories or {}) or 0)
+                if not ok or type(full) ~= "table" or not T.IsFormat(full.format) then
+                    return fail("the server sent an invalid export")
+                end
+                return complete(t, onDone, msg.data, #(full.memories or {}))
             end
             -- every page must come from the same frozen export (the server's snapshot)
             if part == 0 then
