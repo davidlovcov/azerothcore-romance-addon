@@ -105,7 +105,9 @@ function W.Edit(parent, caption, w, maxLetters)
     return holder
 end
 
--- Multi-line text area inside a scroll frame.
+-- Multi-line text area. The EditBox grows with its text, so it has to live in a scroll frame that clips
+-- it. Only the frame scrolls: the box's own wheel handling is replaced, otherwise the wheel and the
+-- scrollbar move the text and the thumb in opposite directions.
 local areaCount = 0
 function W.TextArea(parent, caption, w, h, maxLetters)
     areaCount = areaCount + 1
@@ -114,6 +116,7 @@ function W.TextArea(parent, caption, w, h, maxLetters)
     holder:SetHeight(h + 16)
     holder.caption = W.Label(holder, caption, 11, W.GOLD_DIM)
     holder.caption:SetPoint("TOPLEFT", 2, 0)
+    holder.caption:SetWidth(w - 8)
     local bg = W.Panel(holder, w, h, 0.6)
     bg:SetPoint("TOPLEFT", 0, -14)
     local scroll = CreateFrame("ScrollFrame", "TrueCompanionTextArea" .. areaCount, bg, "UIPanelScrollFrameTemplate")
@@ -127,17 +130,47 @@ function W.TextArea(parent, caption, w, h, maxLetters)
     e:SetHeight(h)
     e:SetMaxLetters(maxLetters or 600)
     e:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    scroll:SetScrollChild(e)
+
+    -- The template's slider counts upwards from its bottom, a text field's scroll position counts from the
+    -- top. Drive both directions ourselves, otherwise dragging the thumb down scrolls towards the beginning.
+    local bar = _G[scroll:GetName() .. "ScrollBar"]
+    local syncing = false
+    local function setScroll(v)
+        local top = scroll:GetVerticalScrollRange()
+        v = math.max(0, math.min(top, v))
+        syncing = true
+        scroll:SetVerticalScroll(v)
+        if bar then bar:SetValue(math.max(0, top - v)) end
+        syncing = false
+    end
+    if bar then
+        bar:SetScript("OnValueChanged", function(self, value)
+            if syncing then return end
+            setScroll(scroll:GetVerticalScrollRange() - value)
+        end)
+        scroll:SetScript("OnVerticalScroll", function(self, offset)
+            if syncing or not bar then return end
+            bar:SetValue(math.max(0, self:GetVerticalScrollRange() - offset))
+        end)
+    end
+
+    -- the wheel scrolls the frame (the one scroller), not the box's own text view
+    e:EnableMouseWheel(true)
+    e:SetScript("OnMouseWheel", function(_, delta)
+        setScroll(scroll:GetVerticalScroll() - delta * 24)
+    end)
     e:SetScript("OnCursorChanged", function(self, x, y, cw, ch)
         local offset = scroll:GetVerticalScroll()
         local height = scroll:GetHeight()
         y = -y
         if y < offset then
-            scroll:SetVerticalScroll(y)
+            setScroll(y)
         elseif y + ch > offset + height then
-            scroll:SetVerticalScroll(y + ch - height)
+            setScroll(y + ch - height)
         end
     end)
-    scroll:SetScrollChild(e)
+
     bg:EnableMouse(true)
     bg:SetScript("OnMouseDown", function() e:SetFocus() end)
     holder.edit = e
