@@ -81,6 +81,7 @@ local function build(f)
 
     local status = W.Label(f, "", 11, W.MUTED)
     status:SetPoint("BOTTOMLEFT", 2, 10)
+    f.status = status
     local refresh = W.Button(f, "Refresh", 90, 22)
     refresh:SetPoint("BOTTOMRIGHT", -4, 6)
     local orderButton = W.Button(f, "Group quests", 100, 22, function() UI:ShowTab("quests") end)
@@ -105,8 +106,19 @@ local function build(f)
         local g, comp, char = TC:Selected()
         sheet = g and TC.state.sheets[g]
         if not g then
+            -- nothing selected: clear the sheet instead of leaving the previous companion's bags and spells
+            -- under "No companion selected"
             name:SetText("No companion selected")
             info:SetText("Select a companion on the Companion tab first.")
+            xp:Set(0)
+            xp.value:SetText("")
+            gold:SetText("")
+            bags:SetLines({})
+            quests:SetLines({})
+            spells:SetLines({})
+            gear:SetLines({})
+            spells.head:SetText("Spells & abilities")
+            status:SetText("")
             return
         end
         name:SetText((char and char.name) or (comp and comp.name) or "?")
@@ -193,7 +205,9 @@ local function build(f)
         local asked = GetTime()
         TC:Request("get_character_sheet", { guid = g }, function(msg)
             local ms = math.floor((GetTime() - asked) * 1000 + 0.5)
-            if msg.op == "ack" and not msg.ok then
+            -- "ack false" (not online) and "error" (refused, rate-limited) both mean the sheet was NOT updated:
+            -- saying "Updated 12:34:56" then would be a lie
+            if msg.op == "error" or (msg.op == "ack" and not msg.ok) then
                 status:SetText("|cffff6060" .. TC:AckText(msg) .. "|r")
             else
                 status:SetText(("Updated %s  |cff888888%d ms|r"):format(date("%H:%M:%S"), ms))
