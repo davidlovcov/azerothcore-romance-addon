@@ -1081,6 +1081,325 @@ check(TC.state.typing[2] == true, "a table in req does not swallow the message")
 serverSend({ op = "typing", guid = 2, on = false })
 check(TC.state.typing[2] == nil, "typing still works afterwards")
 
+-- 10m. situations a player actually creates: two clicks, stale answers, refused requests, edits in flight ----
+do
+    local stub = _G.WOWSTUB
+    TC.state.selected = 2
+
+    -- two identical lines in a row are two lines (history is only loaded into an empty log, so there is no
+    -- duplicate to hide from)
+    do
+        local before = #TC:ChatLog(2)
+        serverSend({ op = "chat_msg", guid = 2, from = "player", text = "hello", ts = 1800001000 })
+        serverSend({ op = "chat_msg", guid = 2, from = "player", text = "hello", ts = 1800001001 })
+        serverSend({ op = "chat_msg", guid = 2, from = "companion", text = "Yes.", ts = 1800001002 })
+        serverSend({ op = "chat_msg", guid = 2, from = "companion", text = "Yes.", ts = 1800001003 })
+        local log = TC:ChatLog(2)
+        check(#log == before + 4, "two identical lines in a row are both kept in the Chat log")
+        check(log[#log].text == "Yes." and log[#log - 1].text == "Yes.", "... for the companion's replies too")
+    end
+
+    -- a refused line clears the typing of the companion it was sent to, not of the one selected meanwhile
+    do
+        local errorsBefore = #TC.state.errors
+        TC.state.typing = {}
+        TC.state.selected = 2
+        TC:SetTyping(2, true)   -- the companion selected now was not the one the line went to
+        TC:SetTyping(3, true)
+        local req = TC:Request("chat", { guid = 3, text = "hi" }, nil)
+        drainRequests()
+        serverSend({ op = "error", code = "busy", req = req, ["for"] = "chat", message = "Lyra is still answering." })
+        check(TC.state.typing[3] == nil, "a refused chat line clears the typing of the companion it was sent to")
+        check(TC.state.typing[2] == true, "... and leaves the typing of the companion selected meanwhile alone")
+        TC:SetTyping(2, false)
+        for _ = 1, #TC.state.errors - errorsBefore do table.remove(TC.state.errors, 1) end
+    end
+
+    -- a refused line is not silently lost: it goes back into the chat box
+    do
+        local errorsBefore = #TC.state.errors
+        TC.state.selected = 2
+        TC.UI:ShowTab("chat")
+        TrueCompanionChatInput:SetText("")
+        drainRequests()
+        TrueCompanionChatInput:SetText("are you there?")
+        TrueCompanionChatInput:GetScript("OnEnterPressed")(TrueCompanionChatInput)
+        local req = findOp(drainRequests(), "chat")
+        check(req ~= nil and req.text == "are you there?", "the line is sent from the Chat tab")
+        check(TC.state.typing[2] == true, "typing on while she answers")
+        serverSend({ op = "error", code = "busy", req = req.req, ["for"] = "chat", message = "Elara is still answering." })
+        check(TC.state.typing[2] == nil, "the refusal stops the thinking dots")
+        check(TrueCompanionChatInput:GetText() == "are you there?", "the refused line is put back into the chat box")
+        for _ = 1, #TC.state.errors - errorsBefore do table.remove(TC.state.errors, 1) end
+    end
+
+    -- an Ollama status push updates the Server panel but does not reset the settings being edited
+    do
+        local _, comp = TC:Selected()
+        comp.settings = comp.settings or {}
+        comp.settings.waitForPlayerLoot = false
+        TC.state.selected = 2
+        TC.UI:ShowTab("settings")
+        local sf = TC.UI.tabs.settings.frame
+        drainRequests()
+        check(not sf.waitLootCheck:GetChecked(), "wait-for-loot starts off")
+        sf.waitLootCheck:SetChecked(true)   -- the player changes it
+        serverSend({ op = "status", enabled = true, model = "m", ollama = { online = false, checked = true } })
+        check(sf.waitLootCheck:GetChecked(), "a status push does not undo the setting the player just changed")
+        check((sf.serverText:GetText() or ""):find("offline") ~= nil, "... but the Server panel shows the new status")
+        sf.waitLootCheck:SetChecked(nil)
+        TC.state.status.ollama.online = true
+    end
+
+    -- unsaved personality edits survive an unsolicited companion push; Undo brings the saved values back
+    do
+        TC.state.selected = 2
+        TC.UI:ShowTab("personality")
+        local pf = TC.UI.tabs.personality.frame
+        drainRequests()
+        local before = pf:Collect()
+        local outgoingSlider
+        for _, fr in ipairs(stub.frames) do
+            if fr._kind == "Slider" then
+                local txt = _G[tostring(fr:GetName()) .. "Text"]
+                if txt and txt:GetText() == "Shy  /  Outgoing" then outgoingSlider = fr end
+            end
+        end
+        check(outgoingSlider ~= nil, "the outgoing trait slider is found")
+        local newValue = (before.traits.outgoing == 77) and 25 or 77
+        outgoingSlider:SetValue(newValue)
+        check(pf:Collect().traits.outgoing == newValue, "the trait changed in the form")
+        serverSend({ op = "companion", guid = 2, name = "Elara", configured = true, personality = personality })
+        check(pf:Collect().traits.outgoing == newValue, "an unsolicited companion push keeps the unsaved trait")
+        click("Undo changes")
+        check(pf:Collect().traits.outgoing == before.traits.outgoing, "Undo changes loads the saved personality again")
+        outgoingSlider:SetValue(newValue)
+        for _, fr in ipairs(stub.frames) do
+            if fr._kind == "Button" and fr._text == "Save personality" then fr:Click() end
+        end
+        local sp = findOp(drainRequests(), "save_personality")
+        check(sp and sp.personality.traits.outgoing == newValue, "the edited trait is what Save personality sends")
+        check(pf:Collect().traits.outgoing == newValue, "... and the form keeps it while the save is on its way")
+        click("Undo changes")
+    end
+
+    -- a refused sheet is not reported as "Updated", and nothing selected clears the old sheet
+    do
+        local errorsBefore = #TC.state.errors
+        TC.state.selected = 2
+        TC.UI:ShowTab("character")
+        local cf = TC.UI.tabs.character.frame
+        drainRequests()
+        cf:Request()
+        local gs = findOp(drainRequests(), "get_character_sheet")
+        serverSend({ op = "error", code = "rate_limited", req = gs.req, ["for"] = "get_character_sheet", message = "Too many requests, slow down." })
+        check((cf.status:GetText() or ""):find("Too many requests") ~= nil, "a refused sheet says why instead of claiming it was updated")
+        TC.state.selected = nil
+        cf:Render()
+        check((cf.spellsBox.text:GetText() or ""):find("nothing") ~= nil, "with nothing selected the previous companion's spells are cleared")
+        check(cf.status:GetText() == "" and cf.spellsBox.head:GetText() == "Spells & abilities",
+            "... and the sheet is empty, not the old companion's data")
+        TC.state.selected = 2
+        for _ = 1, #TC.state.errors - errorsBefore do table.remove(TC.state.errors, 1) end
+    end
+
+    -- a successful Apply is not left looking unapplied just because another request went out meanwhile
+    do
+        local Q = TC.GroupQuests
+        Q.changed, Q.editing = false, false
+        Q:Load({ levelCap = 4, companions = 1, quests = {
+            { id = 11, title = "First", level = 1, who = {} }, { id = 12, title = "Second", level = 1, who = {} } }, available = {} })
+        Q:Move(2, -1)
+        Q:Apply()
+        local applied = findOp(drainRequests(), "set_group_quest_order")
+        check(applied and applied.quests[1] == 12, "Apply sends the edited order")
+        Q:Request()   -- a Share/Take answer or the tab being shown again: another request is in flight
+        drainRequests()
+        serverSend({ op = "ack", ["for"] = "set_group_quest_order", req = applied.req, ok = true })
+        check(not Q.changed, "a successful Apply is not left marked unapplied by an unrelated request in between")
+        -- but a reorder made after Apply is still not claimed as applied
+        Q.changed, Q.editing = false, false
+        Q:Move(1, 1)
+        Q:Apply()
+        local applied2 = findOp(drainRequests(), "set_group_quest_order")
+        Q:Move(2, -1)   -- the new order {12, 11} is changed back while the Apply is on its way
+        check(Q.changed, "a reorder made after Apply is not applied yet")
+        serverSend({ op = "ack", ["for"] = "set_group_quest_order", req = applied2.req, ok = true })
+        check(Q.changed, "the answer to the earlier Apply does not mark the newer reorder as applied")
+        Q.changed, Q.editing = false, false
+    end
+
+    -- the relationship arrives in the companion answer, not as its own push: the tab must not stay "Loading..."
+    do
+        TC.state.selected = 2
+        TC.state.relationship[2] = nil
+        TC.UI:ShowTab("relationship")
+        local rf = TC.UI.tabs.relationship.frame
+        drainRequests()
+        check(rf.stage:GetText() == "Loading...", "the Relationship tab says Loading... while the answer is on its way")
+        serverSend({ op = "companion", guid = 2, name = "Elara", configured = true, personality = personality,
+            settings = { aiEnabled = true }, relationship = relationship })
+        check(rf.stage:GetText() == "Dating / Couple", "the relationship in the companion answer is shown without another push")
+
+        -- and moments only belong to the companion shown: a late answer for the previous one is dropped
+        drainRequests()
+        TC.UI:ShowTab("relationship")
+        local forElara = findOp(drainRequests(), "get_memories")
+        TC.state.selected = 3
+        TC:Fire("SELECTION_CHANGED", 3)
+        local forLyra = findOp(drainRequests(), "get_memories")
+        check(forElara and forLyra and forElara.req ~= forLyra.req, "switching companions asks for the new companion's moments")
+        serverSend({ op = "memories", req = forLyra.req, items = { { text = "Lyra's moment", createdAt = 0 } } })
+        local giftLyra = findOp(drainRequests(), "get_memories")
+        if giftLyra then serverSend({ op = "memories", req = giftLyra.req, items = {} }) end
+        check((rf.moments[1]:GetText() or ""):find("Lyra's moment") ~= nil, "the selected companion's moments are shown")
+        serverSend({ op = "memories", req = forElara.req, items = { { text = "ELARA late moment", createdAt = 0 } } })
+        local lateGift = findOp(drainRequests(), "get_memories")
+        if lateGift then   -- a fixed addon sends no follow-up for the stale answer; an older one does
+            serverSend({ op = "memories", req = lateGift.req, items = { { text = "ELARA gift", createdAt = 0 } } })
+        end
+        check(not (rf.moments[1]:GetText() or ""):find("ELARA"), "a late answer for the previous companion does not replace the moments")
+        check(lateGift == nil, "... and no follow-up request is sent for it")
+        TC.state.selected = 2
+    end
+
+    -- Import: another companion's export is neither preselected nor imported without a question
+    do
+        local MV = TC.MemoryViewer
+        local savedChars, savedExports = TC.state.chars, TrueCompanionDB.exports
+        TC.state.chars = { { guid = 2, name = "Elara", class = 8, className = "Mage", level = 80, status = "in_party", active = true },
+                           { guid = 3, name = "Lyra", class = 5, className = "Priest", level = 70, status = "in_party", active = true } }
+        local elaraText = TC.Json.Encode({ format = "mod-true-companion-export", companion = "Elara",
+            personality = { name = "Elara" }, memories = TC.Json.Array({ { text = "a memory" } }) })
+        TrueCompanionDB.exports = { ["TestRealm#2#100"] = { name = "Elara", realm = "TestRealm", guid = 2, at = 100, memories = 1, text = elaraText } }
+        TrueCompanionDB.lastExport = "TestRealm#2#100"
+        MV:Open(3)
+        drainRequests()
+        MV:ShowTransfer("import")
+        check(MV.transfer.saved:GetValue() == "", "another companion's export is not preselected for a one-click import")
+        MV.transfer.saved:SetValue("TestRealm#2#100")
+        local popupsBefore = #stub.popups
+        MV:RunImport()
+        check(findOp(drainRequests(), "import_begin") == nil, "importing another companion's export asks first")
+        check(#stub.popups == popupsBefore + 1 and stub.popups[#stub.popups].which == "TRUECOMPANION_CONFIRM",
+            "... with a confirmation popup")
+        local question = tostring(stub.popups[#stub.popups].arg1)
+        check(question:find("Elara") and question:find("Lyra"), "the question names the export's companion and the target")
+        StaticPopupDialogs.TRUECOMPANION_CONFIRM.OnAccept(stub.popups[#stub.popups], stub.popups[#stub.popups].data)
+        local begin = findOp(drainRequests(), "import_begin")
+        check(begin and begin.guid == 3, "after confirming, the import runs for the companion whose viewer is open")
+        serverSend({ op = "ack", ["for"] = "import_begin", req = begin.req, ok = false, code = "cancelled" })
+        -- the companion's own last export is still preselected
+        TrueCompanionDB.exports["TestRealm#3#200"] = { name = "Lyra", realm = "TestRealm", guid = 3, at = 200, memories = 0,
+            text = TC.Json.Encode({ format = "mod-true-companion-export", companion = "Lyra", memories = TC.Json.Array({}) }) }
+        TrueCompanionDB.lastExport = "TestRealm#3#200"
+        MV:ShowTransfer("import")
+        check(MV.transfer.saved:GetValue() == "TestRealm#3#200", "the companion's own last export is preselected")
+        check((MV.transfer.help:GetText() or ""):find("personality") ~= nil, "the dialog says that an import also replaces the personality")
+        MV.transfer:Hide()
+        TrueCompanionDB.exports = savedExports
+        TrueCompanionDB.lastExport = nil
+        TC.state.chars = savedChars
+    end
+
+    -- the character list never stays scrolled past its end when it gets shorter
+    do
+        local savedChars = TC.state.chars
+        local many = {}
+        for i = 1, 12 do
+            many[i] = { guid = 100 + i, name = "Char" .. i, class = 8, className = "Mage", level = 10, status = "available" }
+        end
+        TC.state.chars = many
+        TC.UI:ShowTab("companion")
+        local cf = TC.UI.tabs.companion.frame
+        cf.list:GetScript("OnMouseWheel")(cf.list, -3)   -- scroll down three rows
+        check(cf.rows[1].char and cf.rows[1].char.guid == 104, "the character list scrolls")
+        serverSend({ op = "chars", maxActive = 1, chars = {
+            { guid = 2, name = "Elara", class = 8, className = "Mage", level = 80, status = "available" } } })
+        check(cf.rows[1].char and cf.rows[1].char.guid == 2, "a shorter character list is shown from the top instead of blank rows")
+        TC.state.chars = savedChars
+        serverSend({ op = "chars", maxActive = 1, chars = savedChars })
+    end
+
+    -- a damaged saved-variables file does not break the tabs that read it
+    do
+        local errorsBefore = #TC.state.errors
+        local key = TC:CharKey()
+        local savedChat, savedIgnored = TrueCompanionDB.chat, TrueCompanionDB.ignoredQuests
+        local savedCommands, savedExports = TrueCompanionDB.commands, TrueCompanionDB.exports
+        TrueCompanionDB.chat = { [key] = "garbage" }
+        TrueCompanionDB.ignoredQuests = { [key] = "garbage" }
+        TrueCompanionDB.commands = "garbage"
+        TrueCompanionDB.exports = "garbage"
+        check(type(TC:ChatLog(2)) == "table", "a damaged chat log becomes an empty log")
+        serverSend({ op = "chat_msg", guid = 2, from = "companion", text = "still here", ts = 1800002000 })
+        check(type(TC.GroupQuests:Ignored()) == "table", "damaged ignored quests become an empty list")
+        TC.state.selected = 2
+        TC.UI:ShowTab("chat")
+        TC.UI:ShowTab("commands")
+        TC.UI:ShowTab("quests")
+        TC.GroupQuests:SendIgnored()
+        TC.MemoryViewer:ShowTransfer("import")
+        check(type(TC.MemoryViewer.transfer.saved.items) == "table", "damaged saved exports do not break the import dialog")
+        TC.MemoryViewer.transfer:Hide()
+        drainRequests()
+        check(#TC.state.errors == errorsBefore, "no Lua errors from damaged saved variables")
+        TrueCompanionDB.chat, TrueCompanionDB.ignoredQuests = savedChat, savedIgnored
+        TrueCompanionDB.commands, TrueCompanionDB.exports = savedCommands, savedExports
+    end
+
+    -- the server refusing a save must not put the old settings back over the player's changes
+    do
+        TC.state.selected = 2
+        TC.UI:ShowTab("settings")
+        local sf = TC.UI.tabs.settings.frame
+        drainRequests()
+        sf.waitLootCheck:SetChecked(true)
+        sf.waitLootCheck:GetScript("OnClick")(sf.waitLootCheck)   -- what a click does: the form is edited
+        serverSend({ op = "companion", guid = 2, name = "Elara", configured = true, personality = personality,
+            settings = { aiEnabled = true, waitForPlayerLoot = false } })
+        check(sf.waitLootCheck:GetChecked(), "a companion answer that arrives after an edit keeps the settings form")
+        for _, fr in ipairs(stub.frames) do
+            if fr._kind == "Button" and fr._text == "Save settings" then fr:Click() end
+        end
+        local ss = findOp(drainRequests(), "save_settings")
+        check(ss and ss.settings.waitForPlayerLoot == true, "Save settings sends the changed value")
+        serverSend({ op = "ack", ["for"] = "save_settings", req = ss.req, ok = false, code = "ai_admission",
+            message = "She is not ready for that yet." })
+        serverSend({ op = "companion", guid = 2, name = "Elara", configured = true, personality = personality,
+            settings = { aiEnabled = true, waitForPlayerLoot = false } })
+        check(sf.waitLootCheck:GetChecked(), "a refused save keeps the settings the player changed")
+    end
+
+    -- a refused profile save keeps what the player wrote
+    do
+        local errorsBefore = #TC.state.errors
+        TC.state.selected = 2
+        TC.state.profile = { preferredName = "Old name" }
+        TC.state.profileIsDefault = false
+        TC.UI:ShowTab("profile")
+        local prf = TC.UI.tabs.profile.frame
+        drainRequests()
+        prf.fields.preferredName:SetValue("New name")
+        for _, fr in ipairs(stub.frames) do
+            if fr._kind == "Button" and fr._text == "Save profile" then fr:Click() end
+        end
+        local sp = findOp(drainRequests(), "save_profile")
+        check(sp and sp.profile.preferredName == "New name", "Save profile sends the profile")
+        serverSend({ op = "ack", ["for"] = "save_profile", req = sp.req, ok = false, code = "invalid_text",
+            message = "That profile could not be saved." })
+        check(prf.fields.preferredName:GetValue() == "New name", "a refused profile save keeps the text the player wrote")
+        check(findOp(drainRequests(), "get_profile") == nil, "and does not reload the old profile over it")
+        for _, fr in ipairs(stub.frames) do
+            if fr._kind == "Button" and fr._text == "Save profile" then fr:Click() end
+        end
+        local sp2 = findOp(drainRequests(), "save_profile")
+        serverSend({ op = "ack", ["for"] = "save_profile", req = sp2.req, ok = true })
+        check(findOp(drainRequests(), "get_profile") ~= nil, "an accepted save asks for the profile the server stored")
+        for _ = 1, #TC.state.errors - errorsBefore do table.remove(TC.state.errors, 1) end
+    end
+end
+
 -- 10l. a companion that disappears from the list is deselected ---------------------
 TC.state.selected = 3
 TC.state.companions[3] = { guid = 3, name = "Lyra" }
