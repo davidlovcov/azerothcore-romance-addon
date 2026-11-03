@@ -248,6 +248,7 @@ function W.Dropdown(parent, caption, w, items, onSelect)
             info.checked = (holder.value == it.value)
             info.func = function()
                 holder:SetValue(it.value)
+                if holder.onSelect then holder.onSelect(it.value) end
                 if onSelect then onSelect(it.value) end
             end
             UIDropDownMenu_AddButton(info)

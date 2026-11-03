@@ -8,6 +8,16 @@ local W = TC.W
 local UI = TC.UI
 
 local function build(f)
+    -- Unsaved edits: a settings answer that arrives while the player is changing something (the server refusing a
+    -- save still sends the old settings, leaving the tab, a models push) must not reset the form and throw the
+    -- changes away.
+    local dirty, editGuid, loading = false, nil, false
+    local function markDirty()
+        if loading then return end
+        dirty = true
+        editGuid = TC.state.selected
+    end
+
     local left = W.Panel(f, 440, 440)
     left:SetPoint("TOPLEFT", 0, 0)
     local h = W.Heading(left, "Companion behavior")
@@ -99,34 +109,38 @@ local function build(f)
     local serverText = W.Label(info, "", 11, W.TEXT)
     serverText:SetPoint("TOPLEFT", 12, -32)
     serverText:SetWidth(276)
+    f.serverText = serverText
+    f.aiCheck, f.waitLootCheck = ai, waitLoot
 
-    function f:Load()
-        showAdvanced()
-        local g, comp, char = TC:Selected()
+    -- every control the player can change marks the form as edited (a control with its own OnClick keeps it)
+    local function wantsDirty(btn)
+        local prev = btn:GetScript("OnClick")
+        btn:SetScript("OnClick", function(self, ...)
+            if prev then prev(self, ...) end
+            markDirty()
+        end)
+    end
+    for _, cb in ipairs({ ai, party, waitLoot, proactive, commands, listen, ts, mm, quiet }) do wantsDirty(cb) end
+    for _, s in ipairs({ freq, temp, maxChars }) do s.onChange = markDirty end
+    model.onSelect = markDirty
+    f.saveButton = save
+
+    function f:LoadModels()
+        local g, comp = TC:Selected()
         local s = (comp and comp.settings) or {}
-        who:SetText(char and ("for " .. char.name) or "Select a companion first.")
-        ai:SetChecked(s.aiEnabled ~= false)
-        proactive:SetChecked(s.proactiveEnabled ~= false)
-        freq:SetValue(tonumber(s.proactiveFrequency) or 50)
-        commands:SetChecked(s.naturalCommands ~= false)
-        party:SetChecked(s.partyChatMode and true or false)
-        listen:SetChecked(s.listenInParty ~= false)
-        waitLoot:SetChecked(s.waitForPlayerLoot and true or false)
         local items = { { value = "", text = "Server default" } }
         local m = TC.state.models
         if m and m.choice then
             for _, name in ipairs(m.models or {}) do items[#items + 1] = { value = name, text = name } end
         end
         model:SetItems(items)
-        model:SetValue(s.model or "")
-        local t = tonumber(s.temperature) or -1
-        temp:SetValue(t >= 0 and math.floor(t * 100 + 0.5) or 0)
-        maxChars:SetValue(tonumber(s.maxReplyChars) or 0)
-        ts:SetChecked(TC.db.timestamps)
-        mm:SetChecked(not TC.db.minimap.hide)
-        quiet:SetChecked(TC.db.hideBotFeedback ~= false)
-        if g then save:Enable() else save:Disable() end
+        -- the list changed, not the choice: don't put the saved model back over one the player just picked
+        if not dirty then model:SetValue(s.model or "") end
+    end
 
+    -- The Server panel and which controls the server allows. Kept apart from the form: a status push (Ollama came
+    -- back, went away) or a models push must not reload the checkboxes and sliders the player is changing.
+    function f:LoadServer()
         local st = TC.state.status or {}
         local o = st.ollama or {}
         local feat = (TC.state.hello and TC.state.hello.features) or {}
@@ -144,6 +158,41 @@ local function build(f)
         if feat.proactive == false then proactive:Disable() else proactive:Enable() end
         if feat.naturalCommands == false then commands:Disable() else commands:Enable() end
         if feat.modelChoice == false then UIDropDownMenu_DisableDropDown(model.dd) else UIDropDownMenu_EnableDropDown(model.dd) end
+    end
+
+    function f:Load(force)
+        local g, comp, char = TC:Selected()
+        -- a reload while the player has unsaved edits for this companion would throw them away; a different
+        -- companion (or Save succeeding, Undo) always loads
+        if dirty and not force and editGuid == g then
+            if (status:GetText() or "") == "" then
+                status:SetText("Showing your unsaved changes - press Save settings to keep them.")
+            end
+            if g then save:Enable() else save:Disable() end
+            return
+        end
+        loading = true
+        showAdvanced()
+        local s = (comp and comp.settings) or {}
+        who:SetText(char and ("for " .. char.name) or "Select a companion first.")
+        ai:SetChecked(s.aiEnabled ~= false)
+        proactive:SetChecked(s.proactiveEnabled ~= false)
+        freq:SetValue(tonumber(s.proactiveFrequency) or 50)
+        commands:SetChecked(s.naturalCommands ~= false)
+        party:SetChecked(s.partyChatMode and true or false)
+        listen:SetChecked(s.listenInParty ~= false)
+        waitLoot:SetChecked(s.waitForPlayerLoot and true or false)
+        f:LoadModels()
+        local t = tonumber(s.temperature) or -1
+        temp:SetValue(t >= 0 and math.floor(t * 100 + 0.5) or 0)
+        maxChars:SetValue(tonumber(s.maxReplyChars) or 0)
+        ts:SetChecked(TC.db.timestamps)
+        mm:SetChecked(not TC.db.minimap.hide)
+        quiet:SetChecked(TC.db.hideBotFeedback ~= false)
+        if g then save:Enable() else save:Disable() end
+        loading = false
+        dirty, editGuid = false, g
+        f:LoadServer()
     end
 
     save:SetScript("OnClick", function()
@@ -164,15 +213,16 @@ local function build(f)
         }
         status:SetText("Saving...")
         TC:Request("save_settings", { guid = g, settings = s }, function(msg)
-            if msg.op == "ack" then
-                status:SetText(msg.ok and "|cff60ff60Saved.|r" or ("|cffff6060" .. TC:AckText(msg) .. "|r"))
-            end
+            if msg.op ~= "ack" then return end
+            if msg.ok then dirty, editGuid = false, g end   -- what the server stored may now be reloaded
+            status:SetText(msg.ok and "|cff60ff60Saved.|r" or ("|cffff6060" .. TC:AckText(msg) .. "|r"))
         end)
     end)
 
     TC:On("COMPANION_CHANGED", function() if f:IsShown() then f:Load() end end)
-    TC:On("MODELS_CHANGED", function() if f:IsShown() then f:Load() end end)
-    TC:On("STATUS_CHANGED", function() if f:IsShown() then f:Load() end end)
+    TC:On("MODELS_CHANGED", function() if f:IsShown() then f:LoadModels() end end)
+    -- only the Server panel: a status push must not discard settings the player has just changed
+    TC:On("STATUS_CHANGED", function() if f:IsShown() then f:LoadServer() end end)
     TC:On("SELECTION_CHANGED", function() if f:IsShown() then f:Load() end end)
     f.OnShowTab = function()
         TC:Request("list_models")

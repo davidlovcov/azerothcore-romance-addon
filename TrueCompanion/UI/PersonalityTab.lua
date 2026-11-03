@@ -70,6 +70,16 @@ local function build(f)
     local current = {}
     local y = -4
 
+    -- Unsaved edits: while the player has changed something (and it belongs to the companion still selected) the
+    -- form is not reloaded behind their back. An unsolicited companion payload (a chars_changed push, another
+    -- companion called or sent home) used to reset every field and silently throw the edits away.
+    local dirty, editGuid, loading = false, nil, false
+    local function markDirty()
+        if loading then return end
+        dirty = true
+        editGuid = TC.state.selected
+    end
+
     -- bottom row first: other widgets report into `status`
     local status = W.Label(f, "", 11, W.MUTED)
     status:SetPoint("BOTTOMLEFT", 4, 12)
@@ -92,6 +102,15 @@ local function build(f)
         end
     end
 
+    -- a preset replaces the whole personality: once the server accepted it the form may be reloaded
+    local function presetAck(okText)
+        local show = ackText(okText)
+        return function(msg)
+            if msg.op == "ack" and msg.ok then dirty = false end
+            show(msg)
+        end
+    end
+
     -- ---------------------------------------------------------------- presets
     local h = W.Heading(c, "Preset")
     h:SetPoint("TOPLEFT", 4, y)
@@ -108,7 +127,7 @@ local function build(f)
         local id = preset:GetValue()
         if not g or not id then return end
         status:SetText("Applying preset...")
-        TC:Request("apply_preset", { guid = g, preset = id }, ackText("Preset applied."))
+        TC:Request("apply_preset", { guid = g, preset = id }, presetAck("Preset applied."))
     end)
     applyPreset:SetPoint("TOPLEFT", 310, y - 32)
     showAll = W.Check(c, "All genders", "Also list presets written for the other gender.")
@@ -244,6 +263,15 @@ local function build(f)
 
     -- ---------------------------------------------------------------- logic
 
+    -- every control the player can change marks the form as edited
+    for _, e in pairs(fields) do
+        if e.edit then e.edit:SetScript("OnTextChanged", markDirty) end
+    end
+    for _, s in pairs(sliders) do s.onChange = markDirty end
+    for _, cb in ipairs({ formal, romance, autoAccept }) do cb:SetScript("OnClick", markDirty) end
+    for _, cb in pairs(styleChecks) do cb:SetScript("OnClick", markDirty) end
+    length.onSelect, language.onSelect = markDirty, markDirty
+
     -- Gender of the selected companion: the personality's own setting, else the character's model.
     local function companionGender()
         local _, comp, char = TC:Selected()
@@ -276,8 +304,18 @@ local function build(f)
     end
     showAll:HookScript("OnClick", function() f:FillPresets() end)
 
-    function f:Load()
+    function f:Load(force)
         local g, comp = TC:Selected()
+        -- an answer about the same companion must not overwrite what the player is editing; a different
+        -- companion (or an explicit reload: revert, Undo, preset) always loads
+        if dirty and not force and editGuid == g then
+            if (status:GetText() or "") == "" then
+                status:SetText("Showing your unsaved changes - press Save personality to keep them.")
+            end
+            if g then save:Enable() else save:Disable() end
+            return
+        end
+        loading = true
         local p = (comp and comp.personality) or {}
         current = p
         preset:SetValue(p.preset ~= "" and p.preset or nil)
@@ -297,6 +335,8 @@ local function build(f)
         for id, cb in pairs(styleChecks) do cb:SetChecked(set[id] and true or false) end
         romance:SetChecked(p.romanceEnabled ~= false)
         autoAccept:SetChecked(p.autoAcceptProposals and true or false)
+        loading = false
+        dirty, editGuid = false, g
         status:SetText(g and "" or "Select a companion on the Companion tab first.")
         if g then save:Enable() else save:Disable() end
     end
@@ -333,6 +373,7 @@ local function build(f)
         status:SetText("Saving...")
         TC:Request("save_personality", { guid = g, personality = p }, function(msg)
             if msg.op == "ack" then
+                if msg.ok then dirty, editGuid = false, g end   -- the server has them now; the reload may follow
                 local notes = msg.notes and #msg.notes > 0 and (" (" .. table.concat(msg.notes, ", ") .. ")") or ""
                 status:SetText(msg.ok and ("|cff60ff60Saved.|r" .. notes) or ("|cffff6060" .. TC:AckText(msg) .. "|r"))
             end
@@ -340,7 +381,7 @@ local function build(f)
     end)
 
     revert:SetScript("OnClick", function()
-        f:Load()
+        f:Load(true)
         status:SetText("Unsaved changes discarded.")
     end)
 
@@ -348,13 +389,14 @@ local function build(f)
         local g = TC.state.selected
         if not g or not current.preset or current.preset == "" then return end
         status:SetText("Resetting to preset...")
-        TC:Request("apply_preset", { guid = g, preset = current.preset }, ackText("Back to the preset's defaults."))
+        TC:Request("apply_preset", { guid = g, preset = current.preset }, presetAck("Back to the preset's defaults."))
     end)
 
     randomStory:SetScript("OnClick", function()
         for key, v in pairs(TC.Random.CompanionStory(companionGender())) do
             if fields[key] then fields[key]:SetValue(v) end
         end
+        markDirty()
         status:SetText("Random story filled in - press Save to keep it.")
     end)
 
@@ -392,7 +434,7 @@ local function build(f)
 
     TC:On("PRESETS_CHANGED", function() if f:IsShown() then f:FillPresets() end end)
     TC:On("COMPANION_CHANGED", function(g) if g == TC.state.selected and f:IsShown() then f:Load() end end)
-    TC:On("SELECTION_CHANGED", function() if f:IsShown() then f:Load() end end)
+    TC:On("SELECTION_CHANGED", function() if f:IsShown() then f:Load(true) end end)
     f.OnShowTab = function() f:Load() end
 end
 

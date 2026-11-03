@@ -69,6 +69,7 @@ local function build(f)
     end)
     random:SetPoint("RIGHT", save, "LEFT", -8, 0)
     W.Tooltip(random, "Randomize story", "Fills identity, background, interests and shared history with a random story. Name, age and pronouns stay.")
+    f.fields = fields
 
     function f:Load()
         local p = TC.state.profile or {}
@@ -87,8 +88,14 @@ local function build(f)
         p.age = tonumber(p.age) or 0
         status:SetText("Saving...")
         TC:Request("save_profile", { profile = p, accountDefault = default:GetChecked() and true or false }, function(msg)
-            status:SetText(msg.ok and "|cff60ff60Saved.|r" or "|cffff6060Could not save.|r")
-            TC:Request("get_profile")
+            if msg.op == "ack" and msg.ok then
+                status:SetText("|cff60ff60Saved.|r")
+                TC:Request("get_profile")   -- show exactly what the server stored
+            else
+                -- the server refused the profile: keep the text the player wrote instead of loading the old
+                -- profile over it
+                status:SetText("|cffff6060" .. TC:AckText(msg) .. "|r")
+            end
         end)
     end)
 
