@@ -38,10 +38,14 @@ function Protocol.Encode(msg, id)
     local pos, len = 1, #data
     while pos <= len do
         local n = math.min(Protocol.CHUNK, len - pos + 1)
-        while n > 1 and pos + n <= len do
-            local b = strbyte(data, pos + n)
-            if b >= 0x80 and b < 0xC0 then n = n - 1 else break end
+        -- Never cut inside a UTF-8 sequence. A run of four or more continuation bytes is not UTF-8 at all,
+        -- and must not shrink the chunk one byte at a time (one message would become N packets).
+        local run = 0
+        while run < 4 and pos + n + run <= len do
+            local b = strbyte(data, pos + n + run)
+            if b >= 0x80 and b < 0xC0 then run = run + 1 else break end
         end
+        if run > 0 and run < 4 then n = math.max(1, n - run) end
         pieces[#pieces + 1] = strsub(data, pos, pos + n - 1)
         pos = pos + n
     end
