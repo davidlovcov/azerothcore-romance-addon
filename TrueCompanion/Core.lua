@@ -335,11 +335,21 @@ frame:SetScript("OnEvent", function(_, event, a1, a2, a3, a4)
     elseif event == "CHAT_MSG_ADDON" then
         -- a1 prefix, a2 message, a3 distribution, a4 sender
         if a1 ~= Protocol.PREFIX or a3 ~= "WHISPER" or a4 ~= UnitName("player") then return end
+        local started = debugprofilestop and debugprofilestop()
         local msg, err = reassembler:Feed(a2, GetTime())
         if msg then
             dispatch(msg)
         elseif msg == false then
             TC:LogError("protocol", err)
+        end
+        -- Every server message (decode plus whatever it asks the UI to render) runs on the client's main
+        -- thread, so remember the slowest one: it is what a freeze on opening a tab would be.
+        if started and debugprofilestop then
+            local ms = debugprofilestop() - started
+            local slowest = TC.state.slowest
+            if not slowest or ms > slowest.ms then
+                TC.state.slowest = { op = (type(msg) == "table" and msg.op) or "chunk", ms = ms }
+            end
         end
     end
 end)

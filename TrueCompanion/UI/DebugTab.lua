@@ -55,6 +55,10 @@ local function build(f)
                 ("Active AI companions on server: %d"):format(tonumber(msg.activeCompanions) or 0),
             }
             if o.lastError and o.lastError ~= "" then lines[#lines + 1] = "|cffff6060" .. esc(o.lastError) .. "|r" end
+            if TC.state.slowest then
+                lines[#lines + 1] = ("Slowest server message this session: %s, %d ms"):format(
+                    esc(TC.state.slowest.op), math.floor(TC.state.slowest.ms + 0.5))
+            end
             if msg.op == "debug" then
                 lines[#lines + 1] = " "
                 lines[#lines + 1] = ("Companion: pending %d, language %s, memories %d"):format(tonumber(msg.pending) or 0, esc(msg.language), tonumber(msg.memories) or 0)

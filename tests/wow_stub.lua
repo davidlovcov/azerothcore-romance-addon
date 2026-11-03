@@ -163,6 +163,12 @@ tinsert = table.insert
 date = os.date
 time = os.time
 
+-- 3.3.5a: milliseconds since the client started, used for the slow-message readout
+do
+    local start = os.clock()
+    function debugprofilestop() return (os.clock() - start) * 1000 end
+end
+
 -- strict globals: reading an unknown global is an error (catches typos and Retail-only APIs)
 local allowed = { TrueCompanionDB = true, TrueCompanion = true, TrueCompanionChatInput = true,
     TrueCompanionMainFrame = true, TrueCompanionMemoryFrame = true, TrueCompanionMinimapButton = true }

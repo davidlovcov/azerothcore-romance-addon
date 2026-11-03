@@ -190,11 +190,13 @@ local function build(f)
             return
         end
         status:SetText("Updating...")
+        local asked = GetTime()
         TC:Request("get_character_sheet", { guid = g }, function(msg)
+            local ms = math.floor((GetTime() - asked) * 1000 + 0.5)
             if msg.op == "ack" and not msg.ok then
                 status:SetText("|cffff6060" .. TC:AckText(msg) .. "|r")
             else
-                status:SetText(("Updated %s"):format(date("%H:%M:%S")))
+                status:SetText(("Updated %s  |cff888888%d ms|r"):format(date("%H:%M:%S"), ms))
             end
         end)
     end
