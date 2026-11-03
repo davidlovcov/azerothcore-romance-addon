@@ -746,7 +746,7 @@ do
     check(applied and applied.quests[1] == 3 and applied.quests[2] == 2, "Apply sends the new order")
     serverSend(questsMsg({ { 2, "Second" }, { 3, "Third" } }, { req = pending.req }))
     check(ids() == "3,2", "an answer older than Apply doesn't restore the old order")
-    serverSend({ op = "ack", req = applied.req })
+    serverSend({ op = "ack", ["for"] = "set_group_quest_order", req = applied.req, ok = true })
     local after = findOp(drainRequests(), "get_group_quests")
     serverSend(questsMsg({ { 3, "Third" }, { 2, "Second" } }, { req = after.req }))
     check(ids() == "3,2" and not Q.changed, "after Apply the server's order is taken again")
@@ -801,6 +801,20 @@ do
     qf.reset:Click()
     qf.edit:Click()
     check(not Q.editing, "Quests: Done after reset goes back to the simple view")
+
+    -- a rejected "Apply order" must keep the local order instead of claiming it was saved
+    Q.changed = false
+    Q.editing = true
+    qf:Render()
+    qf.rows[1].down:Click()
+    check(Q.changed, "Quests: moving a quest marks the order unsaved")
+    qf.apply:Click()
+    local applied = findOp(drainRequests(), "set_group_quest_order")
+    check(applied ~= nil, "Quests: Apply sends the order")
+    serverSend({ op = "ack", ["for"] = "set_group_quest_order", req = applied.req, ok = false, code = "rate_limited" })
+    check(Q.changed, "Quests: a rejected Apply does not claim the order was saved")
+    check(qf.status:GetText() ~= "", "Quests: the rejection is shown")
+    Q.editing = false
 
     -- Personality: presets and identity; the rest behind Customize
     TC.db.showPersonalityDetails = nil

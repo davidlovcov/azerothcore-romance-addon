@@ -107,18 +107,45 @@ function Q:Move(i, delta)
     self.orderAt = self.seq   -- answers to requests already sent must not undo this
 end
 
+-- The local order only becomes "saved" when the server confirms it: a rejected or unanswered request keeps
+-- `changed` set, so the next refresh merges instead of silently throwing the edits away. The message goes
+-- to the tab's status line, which is built later, hence the frame lookup.
+function Q:OrderAck(sentAt, okText)
+    if self.seq == sentAt then self.changed = false end
+    if self.frame and self.frame.say then self.frame.say(okText) end
+    Q:Request()
+end
+
+function Q:OrderFailed(msg)
+    if self.frame and self.frame.say then self.frame.say(TC:AckText(msg), true) end
+end
+
 function Q:Apply()
     local ids = {}
     for _, q in ipairs(self.quests) do ids[#ids + 1] = q.id end
-    self.changed = false
-    self.orderAt = self.seq
-    TC:Request("set_group_quest_order", { quests = ids, apply = true }, function() Q:Request() end)
+    local sentAt = self.seq
+    self.orderAt = self.seq   -- answers already on their way must not undo this
+    TC:Request("set_group_quest_order", { quests = ids, apply = true }, function(msg)
+        if msg.op == "ack" and msg.ok then
+            Q:OrderAck(sentAt, "Order applied: the leading companion does the first quest that is still needed.")
+        else
+            Q:OrderFailed(msg)
+        end
+    end)
 end
 
 function Q:ResetOrder()
+    -- nothing to lose here: "follow your quest log again" discards the local order either way
     self.changed = false
     self.orderAt = self.seq
-    TC:Request("set_group_quest_order", { quests = {}, apply = false }, function() Q:Request() end)
+    TC:Request("set_group_quest_order", { quests = {}, apply = false }, function(msg)
+        if msg.op == "ack" and msg.ok then
+            if self.frame and self.frame.say then self.frame.say("Order reset: she follows her quest log again.") end
+            Q:Request()
+        else
+            Q:OrderFailed(msg)
+        end
+    end)
 end
 
 local function names(list)
@@ -189,16 +216,10 @@ local function build(f)
     local cap = W.Label(top, "", 10, W.MUTED)
     cap:SetPoint("TOPLEFT", 140, -9)
     cap:SetWidth(280)
-    f.apply = W.Button(top, "Apply order", 100, 20, function()
-        Q:Apply()
-        say("Order applied: the leading companion does the first quest that is still needed.")
-    end)
+    f.apply = W.Button(top, "Apply order", 100, 20, function() Q:Apply() end)
     f.apply:SetPoint("TOPRIGHT", -218, -4)
     W.Tooltip(f.apply, "Apply order", "Sends the new order. A companion who is leading right now switches to the new first quest.")
-    f.reset = W.Button(top, "Reset order", 100, 20, function()
-        Q:ResetOrder()
-        say("Order reset: she follows her quest log again.")
-    end)
+    f.reset = W.Button(top, "Reset order", 100, 20, function() Q:ResetOrder() end)
     f.reset:SetPoint("TOPRIGHT", -112, -4)
     -- the everyday view shows Lead / Share / Take; "Edit list" adds the order, Ignore and Abandon
     f.edit = W.Button(top, "Edit list", 100, 20, function()
