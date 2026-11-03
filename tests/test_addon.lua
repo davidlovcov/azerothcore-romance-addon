@@ -1081,6 +1081,19 @@ check(TC.state.typing[2] == true, "a table in req does not swallow the message")
 serverSend({ op = "typing", guid = 2, on = false })
 check(TC.state.typing[2] == nil, "typing still works afterwards")
 
+-- 10l. a companion that disappears from the list is deselected ---------------------
+TC.state.selected = 3
+TC.state.companions[3] = { guid = 3, name = "Lyra" }
+TC.state.sheets[3] = { level = 70 }
+TC.state.relationship[3] = { stage = 1 }
+TC.state.typing[3] = true
+serverSend({ op = "chars", maxActive = 1, chars = {
+    { guid = 2, name = "Elara", race = 1, raceName = "Human", class = 8, className = "Mage", level = 80, status = "available" } } })
+check(TC.state.selected == nil, "a companion that left the list is deselected")
+check(TC.state.companions[3] == nil and TC.state.sheets[3] == nil and TC.state.relationship[3] == nil
+    and TC.state.typing[3] == nil, "its cached data is dropped with it")
+check(findOp(drainRequests(), "get_companion") == nil, "nothing is requested for it any more")
+
 -- 11. no unexpected UI errors -------------------------------------------------------
 local unexpected = {}
 for _, e in ipairs(TC.state.errors) do

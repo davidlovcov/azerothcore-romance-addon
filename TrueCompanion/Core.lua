@@ -147,6 +147,18 @@ end
 handlers.chars = function(msg)
     TC.state.chars = msg.chars or {}
     TC.state.maxActive = msg.maxActive
+    -- A companion that is gone (unlinked, deleted, another realm) must not stay selected: the tabs would keep
+    -- showing - and saving - the cached data of a guid the server no longer knows.
+    local g = TC.state.selected
+    if g and not TC:FindChar(g) then
+        TC.state.selected = nil
+        TC.state.companions[g] = nil
+        TC.state.sheets[g] = nil
+        TC.state.relationship[g] = nil
+        TC.state.typing[g] = nil
+        TC.state.typingSince[g] = nil
+        TC:Fire("SELECTION_CHANGED", nil)
+    end
     TC:Fire("CHARS_CHANGED")
     TC:Fire("STATUS_CHANGED")
 end
