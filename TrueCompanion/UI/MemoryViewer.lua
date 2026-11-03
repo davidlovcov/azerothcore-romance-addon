@@ -210,7 +210,7 @@ local MAX_SHOWN = 16000   -- the text box holds this many characters; bigger exp
 local MAX_BACKUPS = 3      -- saved exports kept per companion; older ones are removed
 
 local function savedExports()
-    TrueCompanionDB.exports = TrueCompanionDB.exports or {}
+    if type(TrueCompanionDB.exports) ~= "table" then TrueCompanionDB.exports = {} end
     return TrueCompanionDB.exports
 end
 
@@ -298,8 +298,8 @@ function MV:ShowTransfer(mode, text, info, guid)
     d.status:SetText("")
     if mode == "export" then
         d.title:SetText("Export of " .. name)
-        d.help:SetText("The export is saved in the addon. To import it into a companion, open its Memories and press " ..
-            "\"Import...\" - no copying needed.")
+        d.help:SetText("The export is saved in the addon. It holds this companion's personality, settings and memories, " ..
+            "so importing it later restores all of that - no copying needed.")
         d.saved:Hide()
         d.go:Hide()
         if (text or "") == "" then
@@ -322,8 +322,9 @@ function MV:ShowTransfer(mode, text, info, guid)
         return
     end
     d.title:SetText("Import into " .. name)
-    d.help:SetText("Choose a saved export, or paste an export (Ctrl+V) into the box. Imported memories are added; " ..
-        "existing ones stay. Nothing changes unless the whole import arrives.")
+    d.help:SetText("Choose a saved export, or paste one (Ctrl+V) into the box. An export is a whole companion: its " ..
+        "personality and settings replace the ones here and its memories are added (existing memories stay). " ..
+        "Nothing changes unless the whole import arrives.")
     local items = { { value = "", text = "None - use the pasted text" } }
     local keys = {}
     for k in pairs(savedExports()) do keys[#keys + 1] = k end
@@ -340,8 +341,15 @@ function MV:ShowTransfer(mode, text, info, guid)
     d.note:Hide()
     d.area:Show()
     d.saved:SetItems(items)
+    -- Preselect the last export only when it belongs to the companion being imported into: preselecting another
+    -- companion's export (and importing it with one click) would replace this companion's personality with hers.
     local last = TrueCompanionDB.lastExport
-    d.saved:SetValue(savedExports()[last or ""] and last or "")
+    local lastExport = last and savedExports()[last]
+    local sameCompanion = lastExport and (lastExport.guid == nil
+        and last == companionName(d.guid)   -- export saved by an older version, keyed by the companion's name
+        or (lastExport.guid ~= nil and tostring(lastExport.guid) == tostring(d.guid)
+            and (lastExport.realm == nil or lastExport.realm == (GetRealmName() or "?"))))
+    d.saved:SetValue(sameCompanion and last or "")
     d.saved:Show()
     d.area:ClearAllPoints()
     d.area:SetPoint("TOPLEFT", 14, -132)
@@ -375,23 +383,21 @@ function MV:Export()
         end)
 end
 
-function MV:RunImport()
-    local d = self.transfer
-    local guid = d and d.guid
-    if not d or not guid or d.mode ~= "import" then return end
-    local text, source = d.area:GetValue(), "the pasted text"
-    if text == "" then
-        local pick = d.saved:GetValue()
-        local saved = pick and pick ~= "" and savedExports()[pick]
-        if not saved then
-            d.status:SetText("|cffff6060Choose a saved export or paste one first.|r")
-            return
-        end
-        text, source = saved.text, "the saved export of " .. (saved.name or pick)
-    elseif #text >= MAX_SHOWN then
-        d.status:SetText("|cffff6060The pasted text was cut off (too long). Use a saved export instead.|r")
-        return
+-- The name of the companion an export was made from, if the export says so.
+local function exportOwner(text)
+    local ok, full = pcall(TC.Json.Decode, text or "")
+    if not ok or type(full) ~= "table" then return nil end
+    local from = full.companion
+    if type(from) ~= "string" or from == "" then
+        local p = full.personality
+        if type(p) == "table" then from = p.name end
     end
+    if type(from) == "string" and from ~= "" then return from end
+end
+
+-- Starts the transfer. Split out of MV:RunImport so the "another companion's export" question can be asked first.
+function MV:DoImport(guid, text, source)
+    local d = self.transfer
     d.go:Disable()
     d.status:SetText("Importing from " .. source .. "...")
     TC.Transfer:Import(guid, text, function(i, n) d.status:SetText(("Importing part %d/%d..."):format(i, n)) end,
@@ -410,6 +416,37 @@ function MV:RunImport()
                 d.status:SetText("|cffff6060Import failed, nothing was changed: " .. tostring(result) .. "|r")
             end
         end)
+end
+
+function MV:RunImport()
+    local d = self.transfer
+    local guid = d and d.guid
+    if not d or not guid or d.mode ~= "import" then return end
+    local text, source = d.area:GetValue(), "the pasted text"
+    if text == "" then
+        local pick = d.saved:GetValue()
+        local saved = pick and pick ~= "" and savedExports()[pick]
+        if not saved then
+            d.status:SetText("|cffff6060Choose a saved export or paste one first.|r")
+            return
+        end
+        text, source = saved.text, "the saved export of " .. (saved.name or pick)
+    elseif #text >= MAX_SHOWN then
+        d.status:SetText("|cffff6060The pasted text was cut off (too long). Use a saved export instead.|r")
+        return
+    end
+    -- An import replaces the personality and settings as well, so importing another companion's export by mistake
+    -- would change who this companion is. Ask first instead of doing it on one click.
+    local from = exportOwner(text)
+    local target = (TC:FindChar(guid) or {}).name
+    if from and target and from:lower() ~= target:lower() then
+        local popup = StaticPopup_Show("TRUECOMPANION_CONFIRM",
+            ("This export is %s's, not %s's. Importing it replaces %s's personality and settings with the export's. Continue?")
+            :format(TC:Escape(from), TC:Escape(target), TC:Escape(target)))
+        if popup then popup.data = function() MV:DoImport(guid, text, source) end end
+        return
+    end
+    self:DoImport(guid, text, source)
 end
 
 function MV:Open(guid)
